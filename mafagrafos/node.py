@@ -2,6 +2,8 @@ import copy
 
 class Node:
     
+    __slots__ = ["node_id", "label", "in_edges", "out_edges", "data", "graph"]
+    
     def __init__(self, node_id, label, in_edges=None, out_edges=None, data=None, graph=None):
         assert label
         assert node_id >= 0
@@ -13,6 +15,8 @@ class Node:
         self.graph      = graph     if graph        else None
         
     def __eq__(self, other):
+        if other is None:
+            return False
         return  self.label      == other.label      and \
                 self.node_id    == other.node_id    and \
                 self.in_edges   == other.in_edges   and \
