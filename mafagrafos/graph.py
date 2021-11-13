@@ -1,9 +1,28 @@
 from mafagrafos.node import Node
 from mafagrafos.edge import Edge
 
+class NodeVisitor:
+    
+    def __init__(self):
+        self.visited_set = set()
+        
+    def visit(self, node_id):
+        assert node_id not in self.visited_set
+        self.visited_set.add(node_id)
+        
+    def unvisit(self, node_id):
+        assert node_id in self.visited_set
+        self.visited_set.remove(node_id)
+    
+    def has_visited(self, node_id):
+        return node_id in self.visited_set
+        
+    def clear_visited(self):
+        self.visited_set.clear()
+
 class Graph:
     
-    __slots__ = ["name", "next_node_id", "nodes", "labels", "topo_sort_started", "node_to_index", "index_to_node", "edges"]
+    __slots__ = ["name", "next_node_id", "nodes", "labels", "topo_sort_started", "node_to_index", "index_to_node", "edges", "visitor"]
     
     def __init__(self, name):
         assert name
@@ -15,6 +34,7 @@ class Graph:
         self.node_to_index      = []
         self.index_to_node      = []
         self.edges              = {}
+        self.visitor            = NodeVisitor()
     
     def __str__(self):
         return f"<Graph name='{self.name}>'"
@@ -95,3 +115,4 @@ class Graph:
         to_node.add_in_edge(from_node.node_id)
         self.edges[ (from_node.node_id, to_node.node_id) ] = edge
         return edge
+

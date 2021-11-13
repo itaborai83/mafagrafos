@@ -1,7 +1,40 @@
 import unittest
 from mafagrafos.graph import *
 
-class TestNode(unittest.TestCase):
+class TestNodeVisitor(unittest.TestCase):
+    
+    def setUp(self):
+        self.visitor = NodeVisitor()
+    
+    def tearDown(self):
+        pass
+    
+    def test_it_visits_a_node(self):
+        self.visitor.visit(node_id=100)
+        self.assertTrue(self.visitor.has_visited(node_id=100))
+    
+    def test_it_unvisits_a_node(self):
+        self.visitor.visit(node_id=100)
+        self.assertTrue(self.visitor.has_visited(node_id=100))
+        self.visitor.unvisit(node_id=100)
+        self.assertFalse(self.visitor.has_visited(node_id=100))
+
+    def test_it_unvisits_a_node(self):
+        self.visitor.visit(node_id=100)
+        self.assertTrue(self.visitor.has_visited(node_id=100))
+        self.visitor.unvisit(node_id=100)
+        self.assertFalse(self.visitor.has_visited(node_id=100))
+    
+    def test_it_clears_visited_nodes(self):
+        self.visitor.visit(node_id=100)
+        self.visitor.visit(node_id=200)
+        self.assertTrue(self.visitor.has_visited(node_id=100))
+        self.assertTrue(self.visitor.has_visited(node_id=200))
+        self.visitor.clear_visited()
+        self.assertFalse(self.visitor.has_visited(node_id=100))
+        self.assertFalse(self.visitor.has_visited(node_id=200))
+        
+class TestGraph(unittest.TestCase):
 
     def setUp(self):
         pass
