@@ -1,4 +1,5 @@
 from mafagrafos.node import Node
+from mafagrafos.edge import Edge
 
 class Graph:
     
@@ -13,7 +14,7 @@ class Graph:
         self.topo_sort_started  = False
         self.node_to_index      = []
         self.index_to_node      = []
-        self.edges              = set()
+        self.edges              = {}
     
     def __str__(self):
         return f"<Graph name='{self.name}>'"
@@ -21,9 +22,16 @@ class Graph:
     def __repr__(self):
         return f"<Graph name='{self.name}>'"
         
-    def get_node_class(self):
-        return Node
+    def _create_node(self, node_id, label, data=None):
+        node = Node(node_id, label, data=data)
+        node.graph = self
+        return node
 
+    def _create_edge(self, from_node, to_node, edge_label=None, data=None):
+        edge = Edge(from_node.node_id, to_node.node_id, label=edge_label, data=data)
+        edge.graph = self
+        return edge
+        
     def get_node_by_label(self, label):
         # can return None
         return self.labels.get(label, None)
@@ -37,12 +45,11 @@ class Graph:
         assert self.topo_sort_started == False
         self.topo_sort_started = True
         
-    def add_node(self, label):
+    def add_node(self, label, data=None):
         assert label
         assert self.topo_sort_started is False # can only add nodes while not mantaining the topological ordering of the graph
         assert self.get_node_by_label(label) is None
-        klass = self.get_node_class()
-        node = klass(self.next_node_id, label)
+        node = self._create_node(self.next_node_id, label, data)
         self.nodes.append(node)
         self.labels[node.label] = node
         # update the trivial topological sorting of a graph without edges
@@ -54,8 +61,17 @@ class Graph:
         assert len(self.nodes)          == self.next_node_id
         assert len(self.node_to_index)  == self.next_node_id
         assert len(self.index_to_node)  == self.next_node_id
-        node.graph = self
         return node
+    
+    def get_edge(self, from_label, to_label):
+        assert from_label
+        assert to_label
+        from_node = self.get_node_by_label(from_label)
+        assert from_node is not None
+        to_node = self.get_node_by_label(to_label)
+        assert to_node is not None
+        edge_key = (from_node.node_id, to_node.node_id)
+        return self.edges.get(edge_key, None)
     
     def has_edge(self, from_label, to_label):
         assert from_label
@@ -64,4 +80,18 @@ class Graph:
         assert from_node is not None
         to_node = self.get_node_by_label(to_label)
         assert to_node is not None
-        return self._has_edge(from_node.node_id, to_node.node_id)
+        return (from_node.node_id, to_node.node_id) in self.edges
+            
+    def add_edge(self, from_label, to_label, edge_label=None, data=None):
+        assert from_label
+        assert to_label
+        assert self.topo_sort_started is True
+        from_node = self.get_node_by_label(from_label)
+        assert from_node is not None
+        to_node = self.get_node_by_label(to_label)
+        assert to_node is not None
+        edge = self._create_edge(from_node, to_node, edge_label=edge_label, data=data)
+        from_node.add_out_edge(to_node.node_id)
+        to_node.add_in_edge(from_node.node_id)
+        self.edges[ (from_node.node_id, to_node.node_id) ] = edge
+        return edge

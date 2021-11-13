@@ -34,3 +34,13 @@ class TestNode(unittest.TestCase):
         cj11_node = g.get_node_by_id(1)
         self.assertEqual(created_node, cj11_node)
     
+    def test_it_adds_an_edge(self):
+        g = Graph("Test Graph")
+        node_cj10 = g.add_node("CJ10")
+        node_cj11 = g.add_node("CJ11")
+        g.start_topo_sorting()
+        edge = g.add_edge(node_cj10.label, node_cj11.label, "T0")
+        self.assertEqual(g, edge.graph)
+        self.assertTrue(g.has_edge("CJ10", "CJ11"))
+        self.assertFalse(g.has_edge("CJ11", "CJ10"))
+        self.assertEqual(edge, g.get_edge("CJ10", "CJ11"))
