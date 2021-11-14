@@ -4,7 +4,8 @@ from mafagrafos.graph import *
 class TestNodeVisitor(unittest.TestCase):
     
     def setUp(self):
-        self.visitor = NodeVisitor()
+        self.graph = Graph('Test graph')
+        self.visitor = NodeVisitor(self.graph)
     
     def tearDown(self):
         pass
@@ -77,3 +78,119 @@ class TestGraph(unittest.TestCase):
         self.assertTrue(g.has_edge("CJ10", "CJ11"))
         self.assertFalse(g.has_edge("CJ11", "CJ10"))
         self.assertEqual(edge, g.get_edge("CJ10", "CJ11"))
+
+class TestGraphCycles(unittest.TestCase):
+
+    def setUp(self):
+        self.graph = Graph('Test graph')
+        # level 1
+        self.graph.add_node("A") # node_id = 0 
+        # level 2
+        self.graph.add_node("B") # node_id = 1
+        self.graph.add_node("C") # node_id = 2
+        # level 3
+        self.graph.add_node("D") # node_id = 3
+        self.graph.add_node("E") # node_id = 4
+        # level 4
+        self.graph.add_node("F") # node_id = 5
+        self.graph.start_topo_sorting()
+    
+    def tearDown(self):
+        pass
+    
+    def test_it_adds_an_edge(self):
+        edge = self.graph.add_edge("A", "B")
+        self.assertEqual(edge.edge_key(), (0, 1))
+    
+    def test_it_creates_a_line_graph(self):
+        edge = self.graph.add_edge("A", "B")
+        self.assertEqual(edge.edge_key(), (0, 1))
+        edge = self.graph.add_edge("B", "D")
+        self.assertEqual(edge.edge_key(), (1, 3))
+        edge = self.graph.add_edge("D", "F")
+        self.assertEqual(edge.edge_key(), (3, 5))
+    
+    def test_it_adds_an_edge_affecting_the_topo_sort(self):
+        edge = self.graph.add_edge("B", "A")
+        self.assertEqual(edge.edge_key(), (1, 0))
+    
+    def test_it_creates_a_dag(self):
+        edge = self.graph.add_edge("A", "B")
+        self.assertEqual(edge.edge_key(), (0, 1))
+        edge = self.graph.add_edge("A", "C")
+        self.assertEqual(edge.edge_key(), (0, 2))
+
+        edge = self.graph.add_edge("B", "D")
+        self.assertEqual(edge.edge_key(), (1, 3))
+        edge = self.graph.add_edge("B", "E")
+        self.assertEqual(edge.edge_key(), (1, 4))
+        
+        edge = self.graph.add_edge("C", "E")
+        self.assertEqual(edge.edge_key(), (2, 4))
+        edge = self.graph.add_edge("C", "D")
+        self.assertEqual(edge.edge_key(), (2, 3))
+
+        edge = self.graph.add_edge("D", "F")
+        self.assertEqual(edge.edge_key(), (3, 5))
+        edge = self.graph.add_edge("E", "F")
+        self.assertEqual(edge.edge_key(), (4, 5))
+    
+    
+    def test_it_creates_a_dag_with_skip_lanes(self):
+        edge = self.graph.add_edge("A", "B")
+        self.assertEqual(edge.edge_key(), (0, 1))
+        edge = self.graph.add_edge("B", "C")
+        self.assertEqual(edge.edge_key(), (1, 2))
+        edge = self.graph.add_edge("C", "D")
+        self.assertEqual(edge.edge_key(), (2, 3))
+        edge = self.graph.add_edge("D", "E")
+        self.assertEqual(edge.edge_key(), (3, 4))
+        edge = self.graph.add_edge("E", "F")
+        self.assertEqual(edge.edge_key(), (4, 5))
+
+        edge = self.graph.add_edge("A", "F")
+        self.assertEqual(edge.edge_key(), (0, 5))
+        edge = self.graph.add_edge("B", "F")
+        self.assertEqual(edge.edge_key(), (1, 5))
+        edge = self.graph.add_edge("C", "F")
+        self.assertEqual(edge.edge_key(), (2, 5))
+        edge = self.graph.add_edge("D", "F")
+        self.assertEqual(edge.edge_key(), (3, 5))
+        
+    def test_it_fails_to_create_self_loop(self):
+        edge = self.graph.add_edge("A", "A")
+        self.assertEqual(edge, None)
+    
+    def test_it_fails_to_create_a_two_node_loop(self):
+        edge = self.graph.add_edge("A", "B")
+        self.assertEqual(edge.edge_key(), (0, 1))
+        edge = self.graph.add_edge("B", "A")
+        self.assertEqual(edge, None)
+    
+    def test_it_fails_to_create_a_three_node_loop(self):
+        edge = self.graph.add_edge("A", "B")
+        self.assertEqual(edge.edge_key(), (0, 1))
+        edge = self.graph.add_edge("B", "C")
+        self.assertEqual(edge.edge_key(), (1, 2))
+        edge = self.graph.add_edge("C", "A")
+        self.assertEqual(edge, None)
+        
+    def test_it_fails_to_create_a_loop_in_a_dag(self):
+        edge = self.graph.add_edge("A", "B")
+        self.assertEqual(edge.edge_key(), (0, 1))
+        edge = self.graph.add_edge("A", "C")
+        self.assertEqual(edge.edge_key(), (0, 2))
+
+        edge = self.graph.add_edge("B", "D")
+        self.assertEqual(edge.edge_key(), (1, 3))
+        
+        edge = self.graph.add_edge("C", "E")
+        self.assertEqual(edge.edge_key(), (2, 4))
+
+        edge = self.graph.add_edge("D", "F")
+        self.assertEqual(edge.edge_key(), (3, 5))
+        edge = self.graph.add_edge("E", "F")
+        self.assertEqual(edge.edge_key(), (4, 5))
+        
+        edge = self.graph.add_edge("D", "C")
+        self.assertEqual(edge.edge_key(), (3, 2))

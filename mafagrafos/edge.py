@@ -30,3 +30,6 @@ class Edge:
     
     def get_data(self):
         return self.data
+    
+    def edge_key(self):
+        return (self.from_id, self.to_id)
