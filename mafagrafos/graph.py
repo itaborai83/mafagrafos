@@ -243,6 +243,7 @@ class Graph:
             from_node.del_out_edge(to_node.node_id)
             to_node.del_in_edge(from_node.node_id)
             del self.edges[ edge_key ]
+            self.edge_order.pop(-1)
             return None
         self.visitor.shift(lower_bound, upper_bound)
         #print(from_label, '->', to_label)
