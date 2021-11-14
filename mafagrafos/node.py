@@ -33,6 +33,12 @@ class Node:
     def get_data(self):
         return self.data
 
+    def get_attr(self, attr):
+        return self.data.get(attr, None)
+        
+    def set_attr(self, attr, value):
+        self.data[attr] = value
+        
     def has_out_edge(self, node_id):
         assert node_id >= 0
         return node_id in self.out_edges

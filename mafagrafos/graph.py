@@ -98,25 +98,37 @@ class NodeVisitor:
             
 class Graph:
     
-    __slots__ = ["name", "next_node_id", "nodes", "labels", "topo_sort_started", "node_to_index", "index_to_node", "edges", "visitor"]
+    __slots__ = ["name", "allow_cycles", "next_node_id", "nodes", "labels", "topo_sort_started", "node_to_index", "index_to_node", "edges", "edge_order", "visitor", "data"]
     
-    def __init__(self, name):
+    def __init__(self, name, allow_cycles=False):
         assert name
         self.name               = name
+        self.allow_cycles       = allow_cycles # can't be changed
         self.next_node_id       = 0
         self.nodes              = []
         self.labels             = {}
         self.topo_sort_started  = False
-        self.node_to_index      = []
-        self.index_to_node      = []
+        self.node_to_index      = None if allow_cycles else []
+        self.index_to_node      = None if allow_cycles else []
         self.edges              = {}
-        self.visitor            = NodeVisitor(self)
-    
+        self.edge_order         = []
+        self.visitor            = None if allow_cycles else NodeVisitor(self)
+        self.data               = {}
+        
     def __str__(self):
         return f"<Graph name='{self.name}>'"
     
     def __repr__(self):
         return f"<Graph name='{self.name}>'"
+
+    def get_data(self):
+        return self.data
+
+    def get_attr(self, attr):
+        return self.data.get(attr, None)
+        
+    def set_attr(self, attr, value):
+        self.data[attr] = value
         
     def _create_node(self, node_id, label, data=None):
         node = Node(node_id, label, data=data)
@@ -138,6 +150,7 @@ class Graph:
         return self.nodes[node_id]
     
     def get_topo_index(self, node_id):
+        assert not self.allow_cycles
         assert 0 <= node_id < self.next_node_id
         return self.node_to_index[node_id]
         
@@ -145,10 +158,12 @@ class Graph:
         assert self.topo_sort_started == False
         node_count = len(self.nodes)
         assert node_count > 0
+        self.topo_sort_started = True
+        if self.allow_cycles:
+            return
         for idx in range(node_count):
             self.node_to_index[idx] = idx
             self.index_to_node[(node_count - 1) - idx] = idx # why does the index to node need to descend???
-        self.topo_sort_started = True
         
     def add_node(self, label, data=None):
         assert label
@@ -157,16 +172,19 @@ class Graph:
         node = self._create_node(self.next_node_id, label, data)
         self.nodes.append(node)
         self.labels[node.label] = node
-        # update the trivial topological sorting of a graph without edges
-        # node to index mapping - indicates the topological index of node n
-        self.node_to_index.append(node.node_id)
-        # index to node mapping - indicates the node which occupies the nth topological index
-        self.index_to_node.append(node.node_id)
         self.next_node_id += 1
-        assert len(self.nodes)          == self.next_node_id
-        assert len(self.node_to_index)  == self.next_node_id
-        assert len(self.index_to_node)  == self.next_node_id
-        return node
+        assert len(self.nodes) == self.next_node_id
+        if self.allow_cycles:
+            return node
+        else:
+            # update the trivial topological sorting of a graph without edges
+            # node to index mapping - indicates the topological index of node n
+            self.node_to_index.append(node.node_id)
+            # index to node mapping - indicates the node which occupies the nth topological index
+            self.index_to_node.append(node.node_id)
+            assert len(self.node_to_index)  == self.next_node_id
+            assert len(self.index_to_node)  == self.next_node_id
+            return node
     
     def get_edge(self, from_label, to_label):
         assert from_label
@@ -186,8 +204,11 @@ class Graph:
         to_node = self.get_node_by_label(to_label)
         assert to_node is not None
         return (from_node.node_id, to_node.node_id) in self.edges
-            
-    def add_edge(self, from_label, to_label, edge_label=None, data=None):
+    
+    def iter_ordered_edges(self):
+        for edge_key in self.edge_order:
+            yield self.edges[ edge_key ]
+    def add_edge(self, from_label, to_label, edge_label=None, data=None, allow_cycles=False):
         assert from_label
         assert to_label
         assert self.topo_sort_started is True
@@ -195,17 +216,18 @@ class Graph:
         assert from_node is not None
         to_node = self.get_node_by_label(to_label)
         assert to_node is not None
-        if from_node == to_node:
+        if from_node == to_node and not self.allow_cycles:
             return None
-        #print(from_label, '->', to_label)
-        #print(self.node_to_index)
-        #print(self.index_to_node)
 
         edge = self._create_edge(from_node, to_node, edge_label=edge_label, data=data)
         from_node.add_out_edge(to_node.node_id)
         to_node.add_in_edge(from_node.node_id)
         edge_key = (from_node.node_id, to_node.node_id)
         self.edges[ edge_key ] = edge
+        self.edge_order.append(edge_key)
+        if self.allow_cycles:
+            return edge
+            
         # find the affected region of the topological ordering according with the MNR algorithm
         lower_bound = self.get_topo_index(to_node.node_id)
         upper_bound = self.get_topo_index(from_node.node_id)

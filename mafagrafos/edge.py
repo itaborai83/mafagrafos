@@ -31,5 +31,11 @@ class Edge:
     def get_data(self):
         return self.data
     
+    def get_attr(self, attr):
+        return self.data.get(attr, None)
+        
+    def set_attr(self, attr, value):
+        self.data[attr] = value
+    
     def edge_key(self):
         return (self.from_id, self.to_id)
