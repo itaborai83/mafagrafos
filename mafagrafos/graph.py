@@ -87,9 +87,11 @@ class NodeVisitor:
                 self.allocate(current_node_id, topo_idx)
                   
             current = current + 1
+        
         # process the tail end of the affected region
-        for i in range(len(tail_nodes)):
-            self.allocate(tail_nodes[i], i - shift_ammount)
+        for j in range(len(tail_nodes)):
+            self.allocate(tail_nodes[j], current - shift_ammount)
+            current += 1
             
     def allocate(self, node_id, topo_idx):
         # assign the topological index to the node n.
@@ -98,7 +100,7 @@ class NodeVisitor:
             
 class Graph:
     
-    __slots__ = ["name", "allow_cycles", "next_node_id", "nodes", "labels", "topo_sort_started", "node_to_index", "index_to_node", "edges", "edge_order", "visitor", "data"]
+    __slots__ = ["name", "allow_cycles", "next_node_id", "nodes", "labels", "node_to_index", "index_to_node", "edges", "edge_order", "visitor", "data"]
     
     def __init__(self, name, allow_cycles=False):
         assert name
@@ -107,7 +109,6 @@ class Graph:
         self.next_node_id       = 0
         self.nodes              = []
         self.labels             = {}
-        self.topo_sort_started  = False
         self.node_to_index      = None if allow_cycles else []
         self.index_to_node      = None if allow_cycles else []
         self.edges              = {}
@@ -154,20 +155,19 @@ class Graph:
         assert 0 <= node_id < self.next_node_id
         return self.node_to_index[node_id]
         
-    def start_topo_sorting(self):
-        assert self.topo_sort_started == False
-        node_count = len(self.nodes)
-        assert node_count > 0
-        self.topo_sort_started = True
-        if self.allow_cycles:
-            return
-        for idx in range(node_count):
-            self.node_to_index[idx] = idx
-            self.index_to_node[(node_count - 1) - idx] = idx # why does the index to node need to descend???
+    #def start_topo_sorting(self):
+    #    assert self.topo_sort_started == False
+    #    node_count = len(self.nodes)
+    #    assert node_count > 0
+    #    self.topo_sort_started = True
+    #    if self.allow_cycles:
+    #        return
+    #    for idx in range(node_count):
+    #        self.node_to_index[idx] = idx
+    #        self.index_to_node[(node_count - 1) - idx] = idx # why does the index to node need to descend???
         
     def add_node(self, label, data=None):
         assert label
-        assert self.topo_sort_started is False # can only add nodes while not mantaining the topological ordering of the graph
         assert self.get_node_by_label(label) is None
         node = self._create_node(self.next_node_id, label, data)
         self.nodes.append(node)
@@ -208,10 +208,10 @@ class Graph:
     def iter_ordered_edges(self):
         for edge_key in self.edge_order:
             yield self.edges[ edge_key ]
+            
     def add_edge(self, from_label, to_label, edge_label=None, data=None, allow_cycles=False):
         assert from_label
         assert to_label
-        assert self.topo_sort_started is True
         from_node = self.get_node_by_label(from_label)
         assert from_node is not None
         to_node = self.get_node_by_label(to_label)

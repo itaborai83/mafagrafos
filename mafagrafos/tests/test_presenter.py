@@ -20,7 +20,6 @@ class TestGraphPresenter(unittest.TestCase):
             node.set_attr('ammount', 0.0)
         
         # add edges
-        graph.start_topo_sorting()
         for i, entry in enumerate(entries_list.entries):
             dst_label = entry.dst
             dst_node = graph.get_node_by_label(dst_label)
