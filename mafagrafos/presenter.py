@@ -19,7 +19,8 @@ class GraphPresenter:
                 edge = self.graph.get_edge(from_label, to_label)
                 edge_pct = edge.get_attr('ammount') / edges_sum * 100.0
                 edge_pct_txt = '{:.3f}%'.format(edge_pct) 
-                edge.set_attr('pct', edge_pct_txt)
+                edge.set_attr('pct', edge_pct)
+                edge.set_attr('pct_txt', edge_pct_txt)
                 
     def process_node(self, node):
         ammount = node.get_attr('ammount')
@@ -33,7 +34,7 @@ class GraphPresenter:
         from_label = self.in_double_quotes(from_node.label)
         to_label = self.in_double_quotes(to_node.label)
         ammount = edge.get_attr('ammount')
-        pct = edge.get_attr('pct')
+        pct = edge.get_attr('pct_txt')
         time = edge.get_attr('time')
         edge_label = self.in_double_quotes(time +"\\n$" + str(ammount) + "\\n" + pct )
         line = "    " + from_label + " -> " + to_label +  "[label=" + edge_label + "]; "

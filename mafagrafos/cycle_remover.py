@@ -6,6 +6,7 @@ import logging
 from mafagrafos.acc_entry import *
 from mafagrafos.graph import *
 from mafagrafos.presenter import *
+from mafagrafos.paths import *
 
 import mafagrafos.util as util
 
@@ -86,19 +87,7 @@ class App:
                 self.add_node_if_needed(graph, dst_label)
                 edge = graph.add_edge(src_label, dst_label)
             edge.set_attr('ammount', entry.ammount)
-            edge.set_attr('time', time)    
-            #if edge is not None:
-            #    # no cycle was created
-            #    pass
-            #else:
-            #    # a cycle was created
-            #    #dst_label = self.add_remapped_label(dst_label)
-            #    dst_label = self.add_remapped_label(orig_dst_label)
-            #    self.add_node_if_needed(graph, dst_label)
-            #    print(src_label, dst_label)
-            #    edge = graph.add_edge(src_label, dst_label)
-            #    assert edge is not None
-            
+            edge.set_attr('time', time)            
                 
     def create_graph(self, entries):
         logger.info('creating graph')
@@ -119,12 +108,41 @@ class App:
         logger.info('displaying graph')
         presenter = GraphPresenter(graph)
         print(presenter.generate_dot())
-        
+    
+    def report_paths(self, graph, sink_label):
+        paths = Path.build_paths(sink_label, graph)
+        print(
+            "path_id"
+        ,   "path.from_label"
+        ,   "path.to_label"
+        ,   "path.pct"
+        ,   "segment_id"
+        ,   "segment.from_label"
+        ,   "segment.to_label"
+        ,   "segment.pct"
+        ,   sep="\t"
+        )        
+        for path_id, path in enumerate(paths):
+            path_pct = str(path.pct*100.0).replace(".", ",")
+            for segment_id, segment in enumerate(path.segments):
+                segment_pct = str(segment.pct*100.0).replace(".", ",")
+                print(
+                    path_id
+                ,   path.from_label
+                ,   path.to_label
+                ,   path_pct
+                ,   segment_id
+                ,   segment.from_label
+                ,   segment.to_label
+                ,   segment_pct
+                ,   sep="\t"
+                )
     def run(self):
         logger.info('starting loader - version %d.%d.%d', *self.VERSION)    
         entries = self.get_entries()
         graph = self.create_graph(entries)
         self.show_graph(graph)
+        self.report_paths(graph, sink_label="CJ14")
         logger.info('finished')
 
 if __name__ == '__main__':
