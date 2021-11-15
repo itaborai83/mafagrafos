@@ -31,14 +31,17 @@ class App:
     def add_remapped_label(self, label):
         orig_label = label
         counter = 1
+        old_label = label
+        new_label = f"{orig_label}--{counter}"
         while True:
-            new_label = f"{orig_label}--{counter}"
-            if label not in self.labels:
-                logger.info(f"adding label remapping '{orig_label}' -> '{new_label}'")
-                self.labels[label] = new_label
+            if old_label not in self.labels:
+                logger.info(f"adding label remapping '{old_label}' -> '{new_label}'")
+                self.labels[old_label] = new_label
                 return new_label
             else:
                 counter += 1
+                old_label = new_label
+                new_label = f"{orig_label}--{counter}"
     
     def add_node_if_needed(self, graph, label):
         if label is None:
@@ -57,8 +60,10 @@ class App:
         dst_node.set_attr('ammount', ammount + entry.ammount)
 
     def handle_account_transfer(self, graph, entry, time):
-        src_label = self.get_remapped_label(entry.src)
-        dst_label = self.get_remapped_label(entry.dst)
+        orig_src_label = entry.src
+        orig_dst_label = entry.dst
+        src_label = self.get_remapped_label(orig_src_label)
+        dst_label = self.get_remapped_label(orig_dst_label)
         src_node = graph.get_node_by_label(src_label)
         dst_node = graph.get_node_by_label(dst_label)
         src_ammount = src_node.get_attr('ammount') - entry.ammount
@@ -75,17 +80,25 @@ class App:
         else:
             # try to create the edge
             edge = graph.add_edge(src_label, dst_label)
-            if edge is not None:
-                # no cycle was created
-                pass
-            else:
-                # a cycle was created
-                dst_label = self.add_remapped_label(dst_label)
+            while edge is None:
+                # a cycle would be created
+                dst_label = self.add_remapped_label(orig_dst_label)
                 self.add_node_if_needed(graph, dst_label)
                 edge = graph.add_edge(src_label, dst_label)
-                assert edge is not None
             edge.set_attr('ammount', entry.ammount)
-            edge.set_attr('time', time)
+            edge.set_attr('time', time)    
+            #if edge is not None:
+            #    # no cycle was created
+            #    pass
+            #else:
+            #    # a cycle was created
+            #    #dst_label = self.add_remapped_label(dst_label)
+            #    dst_label = self.add_remapped_label(orig_dst_label)
+            #    self.add_node_if_needed(graph, dst_label)
+            #    print(src_label, dst_label)
+            #    edge = graph.add_edge(src_label, dst_label)
+            #    assert edge is not None
+            
                 
     def create_graph(self, entries):
         logger.info('creating graph')
