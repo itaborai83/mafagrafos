@@ -21,7 +21,8 @@ class App:
         
     def get_entries(self):
         logger.info('retrieving accounting entries')
-        return AccEntry.get_test_case_01()
+        return AccEntry.get_test_case_02()
+        
     
     def get_remapped_label(self, label):
         while True:
@@ -53,7 +54,8 @@ class App:
             logger.info(f"adding node '{label}'")
             node = graph.add_node(label)
             node.set_attr('ammount', 0.0)
-    
+        return node
+        
     def handle_direct_loading(self, graph, entry):
         dst_label = self.get_remapped_label(entry.dst)
         dst_node = graph.get_node_by_label(dst_label)
@@ -67,10 +69,6 @@ class App:
         dst_label = self.get_remapped_label(orig_dst_label)
         src_node = graph.get_node_by_label(src_label)
         dst_node = graph.get_node_by_label(dst_label)
-        src_ammount = src_node.get_attr('ammount') - entry.ammount
-        dst_ammount = dst_node.get_attr('ammount') + entry.ammount
-        src_node.set_attr('ammount', src_ammount)
-        dst_node.set_attr('ammount', dst_ammount)
         edge = graph.get_edge(src_label, dst_label)
         if edge is not None:
             # existing edge does not add a cycle
@@ -84,11 +82,16 @@ class App:
             while edge is None:
                 # a cycle would be created
                 dst_label = self.add_remapped_label(orig_dst_label)
-                self.add_node_if_needed(graph, dst_label)
+                dst_node = self.add_node_if_needed(graph, dst_label)
                 edge = graph.add_edge(src_label, dst_label)
             edge.set_attr('ammount', entry.ammount)
             edge.set_attr('time', time)            
-                
+        
+        src_ammount = src_node.get_attr('ammount') - entry.ammount
+        src_node.set_attr('ammount', src_ammount)        
+        dst_ammount = dst_node.get_attr('ammount') + entry.ammount
+        dst_node.set_attr('ammount', dst_ammount)
+        
     def create_graph(self, entries):
         logger.info('creating graph')
         label_remappings = {}
