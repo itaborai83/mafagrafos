@@ -56,11 +56,12 @@ class AccEntry:
 
     @classmethod
     def get_test_case_01(klass):
-        return [
+        return "CJ14", [
             AccEntry("CJ20", None,   1_000_000.00)
         ,   AccEntry("CJ10", "CJ20",   850_000.00)
         ,   AccEntry("CJ12", "CJ20",   150_000.00)
         ,   AccEntry("CJ10", None,     400_000.00)
+        ,   AccEntry("CJ11", None,     200_000.00) # look here
         ,   AccEntry("CJ11", "CJ10",   500_000.00)
         ,   AccEntry("CJ13", "CJ10",   750_000.00)
         ,   AccEntry("CJ13", None,     100_000.00)
@@ -81,7 +82,7 @@ class AccEntry:
     
     @classmethod
     def get_test_case_02(klass):
-        return [
+        return "X", [
             AccEntry("C",    None,	-200)
         ,   AccEntry("C",    None,	 300)
         ,   AccEntry("B",    "C",    100)

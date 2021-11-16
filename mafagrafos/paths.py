@@ -3,6 +3,8 @@ from operator import mul
 
 class Segment:
     
+    __slots__ = ["from_label", "to_label", "pct"]
+    
     def __init__(self, from_label, to_label, pct):
         assert from_label
         assert to_label
@@ -22,12 +24,15 @@ class Segment:
         return self # I think I can share segments between paths
     
 class Path:
-        
+    
+    __slots__ = ["from_label", "to_label", "segments", "segment_count", "inputed_ammount"]
+    
     def __init__(self, from_label, to_label):
-        self.from_label     = from_label
-        self.to_label       = to_label
-        self.segments       = []
-        self.segment_count  = 0
+        self.from_label      = from_label
+        self.to_label        = to_label
+        self.segments        = []
+        self.segment_count   = 0
+        self.inputed_ammount = 0.0
 
     def __eq__(self, other):
         if other is None:
@@ -80,5 +85,6 @@ class Path:
             curr_path = old_path.clone()
             curr_path.from_label = from_node.label
             curr_path.push_segment(from_node.label, curr_node.label, edge_pct)
+            curr_path.inputed_ammount = from_node.get_attr('inputed_ammount')
             acc.append(curr_path)
             klass._build_path(from_node, curr_path, graph, acc)

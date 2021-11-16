@@ -21,7 +21,7 @@ class App:
         
     def get_entries(self):
         logger.info('retrieving accounting entries')
-        return AccEntry.get_test_case_02()
+        return AccEntry.get_test_case_01()
         
     
     def get_remapped_label(self, label):
@@ -54,14 +54,17 @@ class App:
             logger.info(f"adding node '{label}'")
             node = graph.add_node(label)
             node.set_attr('ammount', 0.0)
+            node.set_attr('inputed_ammount', 0.0)
         return node
         
     def handle_direct_loading(self, graph, entry):
         dst_label = self.get_remapped_label(entry.dst)
         dst_node = graph.get_node_by_label(dst_label)
         ammount = dst_node.get_attr('ammount')
+        inputed_ammount = dst_node.get_attr('inputed_ammount')
         dst_node.set_attr('ammount', ammount + entry.ammount)
-
+        dst_node.set_attr('inputed_ammount', inputed_ammount + entry.ammount)
+        
     def handle_account_transfer(self, graph, entry, time):
         orig_src_label = entry.src
         orig_dst_label = entry.dst
@@ -115,37 +118,69 @@ class App:
     def report_paths(self, graph, sink_label):
         paths = Path.build_paths(sink_label, graph)
         print(
-            "path_id"
-        ,   "path.from_label"
-        ,   "path.to_label"
-        ,   "path.pct"
-        ,   "segment_id"
-        ,   "segment.from_label"
-        ,   "segment.to_label"
-        ,   "segment.pct"
+            "CAMINHO"
+        ,   "CAMINHO_ORIGEM"
+        ,   "CAMINHO_DESTINO"
+        ,   "CAMINHO_PCT"
+        ,   "ENTRADA_DIRETA_ORIGEM"
+        ,   "SEGMENTO"
+        ,   "SEGMENT_ORIGEM"
+        ,   "SEGMENTO_DESTINO"
+        ,   "SEGMENT_PCT"
+        ,   "SEGMENTO_VALOR_REPASSADO"
         ,   sep="\t"
         )        
         for path_id, path in enumerate(paths):
             path_pct = str(path.pct*100.0).replace(".", ",")
+            reached_value = path.inputed_ammount
+            acc = []
             for segment_id, segment in enumerate(path.segments):
-                segment_pct = str(segment.pct*100.0).replace(".", ",")
+                pct = segment.pct
+                reached_value *= pct
+                acc.append( [
+                        path_id
+                    ,   path.from_label
+                    ,   path.to_label
+                    ,   path_pct
+                    ,   str(path.inputed_ammount).replace(".", ",")
+                    ,   segment_id
+                    ,   segment.from_label
+                    ,   segment.to_label
+                    ,   str(segment.pct*100.0).replace(".", ",")
+                    ,   str(reached_value).replace(".", ",")
+                ] )
+            for entry in acc:
+                entry                    = list(map(str, entry))
+                caminho                  = entry[0]
+                caminho_origem           = entry[1]
+                caminho_destino          = entry[2]
+                caminho_pct              = str(path.pct * 100.0).replace(".", ",")
+                entrada_direta_origem    = entry[4]
+                segmento                 = entry[5]
+                segment_origem           = entry[6]
+                segmento_destino         = entry[7]
+                segment_pct              = str(entry[8]).replace(".", ",")
+                segmento_valor_repassado = entry[9]
+        
                 print(
-                    path_id
-                ,   path.from_label
-                ,   path.to_label
-                ,   path_pct
-                ,   segment_id
-                ,   segment.from_label
-                ,   segment.to_label
+                    caminho
+                ,   caminho_origem
+                ,   caminho_destino
+                ,   caminho_pct 
+                ,   entrada_direta_origem
+                ,   segmento
+                ,   segment_origem
+                ,   segmento_destino
                 ,   segment_pct
-                ,   sep="\t"
-                )
+                ,   segmento_valor_repassado
+                ,   sep="\t"    
+                )                
     def run(self):
         logger.info('starting loader - version %d.%d.%d', *self.VERSION)    
-        entries = self.get_entries()
+        sink_label, entries = self.get_entries()
         graph = self.create_graph(entries)
         self.show_graph(graph)
-        self.report_paths(graph, sink_label="CJ14")
+        self.report_paths(graph, sink_label=sink_label)
         logger.info('finished')
 
 if __name__ == '__main__':

@@ -7,7 +7,7 @@ class GraphPresenter:
     def compute_pcts(self):
         for node in self.graph.nodes:
             from_label = node.label
-            edges_sum = 0.0
+            edges_sum = node.get_attr('ammount')
             
             for out_node_id in node.out_edges:
                 to_label = self.graph.get_node_by_id(out_node_id).label
