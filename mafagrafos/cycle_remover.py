@@ -27,6 +27,12 @@ class App:
         self.dot_file       = dot_file
         self.path_report    = path_report
         self.labels         = {}
+        self.current_time   = 0
+    
+    def tick(self):
+        curr_time = self.current_time
+        self.current_time += 1
+        return f'T{curr_time}'
         
     def get_entries(self):
         logger.info('retrieving accounting entries from spreadsheet')
@@ -45,6 +51,14 @@ class App:
             result.append(entry)
         return result
     
+    def get_label_remappings(self, label):
+        result = [label]
+        while True:
+            if label not in self.labels:
+                return result
+            label = self.labels[label]
+            result.append(label)
+            
     def get_remapped_label(self, label):
         while True:
             if label not in self.labels:
@@ -85,8 +99,36 @@ class App:
         inputed_ammount = dst_node.get_attr('inputed_ammount')
         dst_node.set_attr('ammount', ammount + entry.ammount)
         dst_node.set_attr('inputed_ammount', inputed_ammount + entry.ammount)
+    
+    def transfer_ammount_through_time(self, graph, orig_dst_label):
+        remappings = self.get_label_remappings(orig_dst_label)
+        assert len(remappings) >= 2
+        current_label = remappings[-1]
+        prev_label    = remappings[-2]
+        current_node  = graph.get_node_by_label(current_label) 
+        prev_node     = graph.get_node_by_label(prev_label) 
+        prev_node_ammount = prev_node.get_attr('ammount')
+        curr_node_ammount = current_node.get_attr('ammount')
+        assert curr_node_ammount == 0.0
+        if prev_node_ammount == 0.0:
+            # do not create a time transfer when there is not to transfer
+            return
+        assert current_node
+        assert prev_node
+        edge = graph.get_edge(prev_label, current_label)
+        assert edge is None
+        # create the edge
+        edge = graph.add_edge(prev_label, current_label)
+        edge_ammount = prev_node_ammount
+        prev_node_ammount -= edge_ammount
+        curr_node_ammount += edge_ammount
+        prev_node.set_attr('ammount', prev_node_ammount)
+        current_node.set_attr('ammount', curr_node_ammount)
+        edge.set_attr('ammount', edge_ammount)
+        edge.set_attr('time', self.tick())
+        edge.set_attr('pct', 0.0)
         
-    def handle_account_transfer(self, graph, entry, time):
+    def handle_account_transfer(self, graph, entry):
         orig_src_label = entry.src
         orig_dst_label = entry.dst
         src_label = self.get_remapped_label(orig_src_label)
@@ -98,6 +140,7 @@ class App:
             # existing edge does not add a cycle
             edge_ammount = edge.get_attr('ammount') + entry.ammount
             edge.set_attr('ammount', edge_ammount)
+            time = self.tick()
             time = edge.get_attr('time') + ", " + time
             edge.set_attr('time', time)
         else:
@@ -106,9 +149,11 @@ class App:
             while edge is None:
                 # a cycle would be created
                 dst_label = self.add_remapped_label(orig_dst_label)
-                dst_node = self.add_node_if_needed(graph, dst_label)
+                dst_node = self.add_node_if_needed(graph, dst_label) # wll always create the node
+                self.transfer_ammount_through_time(graph, orig_dst_label) # transfer the all the remaining balance to the new node
                 edge = graph.add_edge(src_label, dst_label)
             edge.set_attr('ammount', entry.ammount)
+            time = self.tick()
             edge.set_attr('time', time)            
         
         src_ammount = src_node.get_attr('ammount') - entry.ammount
@@ -121,14 +166,13 @@ class App:
         label_remappings = {}
         graph = Graph('Test graph', allow_cycles=False)
 
-        for i, entry in enumerate(entries):
-            time = "T"+str(i)
+        for entry in entries:
             self.add_node_if_needed(graph, entry.src)
             self.add_node_if_needed(graph, entry.dst)
             if entry.src is None:
                 self.handle_direct_loading(graph, entry)
             else:
-                self.handle_account_transfer(graph, entry, time)
+                self.handle_account_transfer(graph, entry)
         return graph
     
     def generate_graph(self, graph):
