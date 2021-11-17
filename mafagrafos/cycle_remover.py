@@ -3,6 +3,9 @@ import os
 import sys
 import argparse
 import logging
+import pandas as pd
+import numpy as np
+
 from mafagrafos.acc_entry import *
 from mafagrafos.graph import *
 from mafagrafos.presenter import *
@@ -15,14 +18,32 @@ logger = util.get_logger('cycle_remover')
 class App:
     
     VERSION = (0, 0, 0)
+    ENTRIES_SHEET_COLUMNS = [ "dst", "src", "ammount" ]
     
-    def __init__(self):
-        self.labels = {}
+    def __init__(self, entries_file, sink_label, dot_file, path_report):
+        assert dot_file.endswith(".dot")
+        self.entries_file   = entries_file
+        self.sink_label     = sink_label
+        self.dot_file       = dot_file
+        self.path_report    = path_report
+        self.labels         = {}
         
     def get_entries(self):
-        logger.info('retrieving accounting entries')
-        return AccEntry.get_test_case_01()
-        
+        logger.info('retrieving accounting entries from spreadsheet')
+        parts = self.entries_file.split(":")
+        assert len(parts) == 2
+        entries_file = parts[0]
+        sheet_name = parts[1]            
+        df = pd.read_excel(entries_file, sheet_name, header=None, names=self.ENTRIES_SHEET_COLUMNS, skiprows=1).replace({np.nan: None})
+        result = []
+        for row in df.itertuples():
+            entry = AccEntry(
+                row.dst
+            ,   row.src if row.src else None
+            ,   row.ammount
+            )
+            result.append(entry)
+        return result
     
     def get_remapped_label(self, label):
         while True:
@@ -110,86 +131,114 @@ class App:
                 self.handle_account_transfer(graph, entry, time)
         return graph
     
-    def show_graph(self, graph):
-        logger.info('displaying graph')
+    def generate_graph(self, graph):
+        logger.info(f'generating dotfile')
         presenter = GraphPresenter(graph)
-        print(presenter.generate_dot())
-    
-    def report_paths(self, graph, sink_label):
-        paths = Path.build_paths(sink_label, graph)
-        print(
-            "CAMINHO"
-        ,   "CAMINHO_ORIGEM"
-        ,   "CAMINHO_DESTINO"
-        ,   "CAMINHO_PCT"
-        ,   "ENTRADA_DIRETA_ORIGEM"
-        ,   "SEGMENTO"
-        ,   "SEGMENT_ORIGEM"
-        ,   "SEGMENTO_DESTINO"
-        ,   "SEGMENT_PCT"
-        ,   "SEGMENTO_VALOR_REPASSADO"
-        ,   sep="\t"
-        )        
+        with open(self.dot_file, "w") as fh:
+            print(presenter.generate_dot(), file=fh)
+            
+    def report_entries(self, xlsx_writer, entries):
+        logger.info('generating accounting entries sheet')
+        columns = { 'DESTINO': [], 'ORIGEM': [], 'VALOR': [] }
+        for entry in entries:
+            columns['DESTINO'].append(entry.dst)
+            columns['ORIGEM'].append(entry.src)
+            columns['VALOR'].append(entry.ammount)
+        df_entries = pd.DataFrame(columns)
+        df_entries.to_excel(xlsx_writer, sheet_name='PARTIDAS')
+
+    def report_balances(self, xlsx_writer, graph):
+        logger.info('generating balance sheet')
+        columns = {
+            'ORIGEM'                : []
+        ,   'ENTRADA_DIRETA'        : []
+        ,   'SALDO'                 : []
+        }
+        for node in graph.nodes:
+            columns['ORIGEM'        ].append(node.label)
+            columns['ENTRADA_DIRETA'].append(node.get_attr('inputed_ammount'))
+            columns['SALDO'         ].append(node.get_attr('ammount'))
+        df_entries = pd.DataFrame(columns)
+        df_entries.to_excel(xlsx_writer, sheet_name='SALDOS')
+        
+    def report_paths(self, xlsx_writer, paths):
+        logger.info('generating paths sheet')
+        columns = {
+            'CAMINHO'               : []
+        ,   'ORIGEM'                : []
+        ,   'DESTINO'               : []
+        ,   'PERCENTUAL'            : []
+        ,   'ENTRADA_DIRETA_ORIGEM' : []
+        ,   'REPASSE_RESULTANTE'    : []
+        }
         for path_id, path in enumerate(paths):
-            path_pct = str(path.pct*100.0).replace(".", ",")
-            reached_value = path.inputed_ammount
-            acc = []
+            pct = path.pct 
+            columns['CAMINHO'               ].append(path_id + 1)
+            columns['ORIGEM'                ].append(path.from_label)
+            columns['DESTINO'               ].append(path.to_label)
+            columns['PERCENTUAL'            ].append(pct * 100)
+            columns['ENTRADA_DIRETA_ORIGEM' ].append(path.inputed_ammount)
+            columns['REPASSE_RESULTANTE'    ].append(path.inputed_ammount * pct)
+        df_entries = pd.DataFrame(columns)
+        df_entries.to_excel(xlsx_writer, sheet_name='CAMINHOS')
+
+    def report_segments(self, xlsx_writer, paths):
+        logger.info('generating segments sheet')
+        columns = {
+            'CAMINHO'               : []
+        ,   'ORIGEM'                : []
+        ,   'DESTINO'               : []
+        ,   'PERCENTUAL'            : []
+        ,   'ENTRADA_DIRETA_ORIGEM' : []
+        ,   'REPASSE_RESULTANTE'    : []
+        ,   'SEGMENTO'              : []
+        ,   'SEG_ORIGEM'            : []
+        ,   'SEG_DESTINO'           : []
+        ,   'SEG_PERCENTUAL'        : []
+        }
+        for path_id, path in enumerate(paths):
+            pct = path.pct 
             for segment_id, segment in enumerate(path.segments):
                 pct = segment.pct
-                reached_value *= pct
-                acc.append( [
-                        path_id
-                    ,   path.from_label
-                    ,   path.to_label
-                    ,   path_pct
-                    ,   str(path.inputed_ammount).replace(".", ",")
-                    ,   segment_id
-                    ,   segment.from_label
-                    ,   segment.to_label
-                    ,   str(segment.pct*100.0).replace(".", ",")
-                    ,   str(reached_value).replace(".", ",")
-                ] )
-            for entry in acc:
-                entry                    = list(map(str, entry))
-                caminho                  = entry[0]
-                caminho_origem           = entry[1]
-                caminho_destino          = entry[2]
-                caminho_pct              = str(path.pct * 100.0).replace(".", ",")
-                entrada_direta_origem    = entry[4]
-                segmento                 = entry[5]
-                segment_origem           = entry[6]
-                segmento_destino         = entry[7]
-                segment_pct              = str(entry[8]).replace(".", ",")
-                segmento_valor_repassado = entry[9]
+                columns['CAMINHO'               ].append(path_id + 1)
+                columns['ORIGEM'                ].append(path.from_label)
+                columns['DESTINO'               ].append(path.to_label)
+                columns['PERCENTUAL'            ].append(pct * 100.0)
+                columns['ENTRADA_DIRETA_ORIGEM' ].append(path.inputed_ammount)
+                columns['REPASSE_RESULTANTE'    ].append(path.inputed_ammount * pct)
+                columns['SEGMENTO'              ].append(segment_id+1)
+                columns['SEG_ORIGEM'            ].append(segment.from_label)
+                columns['SEG_DESTINO'           ].append(segment.to_label)
+                columns['SEG_PERCENTUAL'        ].append(segment.pct * 100.0)
+            
+        df_entries = pd.DataFrame(columns)
+        df_entries.to_excel(xlsx_writer, sheet_name='SEGMENTOS')
         
-                print(
-                    caminho
-                ,   caminho_origem
-                ,   caminho_destino
-                ,   caminho_pct 
-                ,   entrada_direta_origem
-                ,   segmento
-                ,   segment_origem
-                ,   segmento_destino
-                ,   segment_pct
-                ,   segmento_valor_repassado
-                ,   sep="\t"    
-                )                
+    def report_result(self, graph, sink_label, entries):
+        logger.info('creating path report')
+        paths = Path.build_paths(sink_label, graph)
+        xlsx_writer = pd.ExcelWriter(self.path_report)
+        # write accouting entries
+        self.report_entries(xlsx_writer, entries)
+        self.report_balances(xlsx_writer, graph)
+        self.report_paths(xlsx_writer, paths)
+        self.report_segments(xlsx_writer, paths)
+        xlsx_writer.save()
+    
     def run(self):
         logger.info('starting loader - version %d.%d.%d', *self.VERSION)    
-        sink_label, entries = self.get_entries()
+        entries = self.get_entries()
         graph = self.create_graph(entries)
-        self.show_graph(graph)
-        self.report_paths(graph, sink_label=sink_label)
+        self.generate_graph(graph)
+        self.report_result(graph, sink_label=self.sink_label, entries=entries)
         logger.info('finished')
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    #parser.add_argument('--fakeseq',    required=False, action='store_true', help='usa gerador de sequences fake')
-    #parser.add_argument('--user',       required=True, type=str, help='usuário do banco de dados oracle')
-    #parser.add_argument('--passwd',     required=True, type=str, help='senha do usuário de banco')
-    #parser.add_argument('--dsn',        required=True, type=str, help='string de conexão formato [host]:[port]/[service_name]",')
-    #parser.add_argument('spreadsheet',  type=str, help='planilha com dados de imóveis')
+    parser.add_argument('entries_file',  type=str, help='spread sheet of accouting entries')
+    parser.add_argument('sink_label',  type=str, help='sink node label')
+    parser.add_argument('dot_file',  type=str, help='dot file name')
+    parser.add_argument('path_report',  type=str, help='path report file name')
     args = parser.parse_args()
-    app = App()
+    app = App(args.entries_file, args.sink_label, args.dot_file, args.path_report)
     app.run()
