@@ -132,4 +132,5 @@ dmypy.json
 *.tsv
 *.csv
 DADOS/
+SAIDA/
 repotoken.txt

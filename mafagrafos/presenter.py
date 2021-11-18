@@ -36,7 +36,9 @@ class GraphPresenter:
         ammount = edge.get_attr('ammount')
         pct = edge.get_attr('pct_txt')
         time = edge.get_attr('time')
-        edge_label = self.in_double_quotes(time +"\\n$" + str(ammount) + "\\n" + pct )
+        time_txts = map(lambda t: f"T{t}", time)
+        time_txts = ", ".join(list(time_txts))
+        edge_label = self.in_double_quotes(time_txts +"\\n$" + str(ammount) + "\\n" + pct )
         line = "    " + from_label + " -> " + to_label +  "[label=" + edge_label + "]; "
         return line,
         

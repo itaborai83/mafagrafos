@@ -32,7 +32,7 @@ class App:
     def tick(self):
         curr_time = self.current_time
         self.current_time += 1
-        return f'T{curr_time}'
+        return curr_time
         
     def get_entries(self):
         logger.info('retrieving accounting entries from spreadsheet')
@@ -111,7 +111,7 @@ class App:
         curr_node_ammount = current_node.get_attr('ammount')
         assert curr_node_ammount == 0.0
         if prev_node_ammount == 0.0:
-            # do not create a time transfer when there is not to transfer
+            # do not create a time transfer when there is nothing to transfer
             return
         assert current_node
         assert prev_node
@@ -125,7 +125,7 @@ class App:
         prev_node.set_attr('ammount', prev_node_ammount)
         current_node.set_attr('ammount', curr_node_ammount)
         edge.set_attr('ammount', edge_ammount)
-        edge.set_attr('time', self.tick())
+        edge.set_attr('time', [ self.tick() ])
         edge.set_attr('pct', 0.0)
         
     def handle_account_transfer(self, graph, entry):
@@ -141,8 +141,7 @@ class App:
             edge_ammount = edge.get_attr('ammount') + entry.ammount
             edge.set_attr('ammount', edge_ammount)
             time = self.tick()
-            time = edge.get_attr('time') + ", " + time
-            edge.set_attr('time', time)
+            edge.get_attr('time').append(time)
         else:
             # try to create the edge
             edge = graph.add_edge(src_label, dst_label)
@@ -154,7 +153,7 @@ class App:
                 edge = graph.add_edge(src_label, dst_label)
             edge.set_attr('ammount', entry.ammount)
             time = self.tick()
-            edge.set_attr('time', time)            
+            edge.set_attr('time', [time])
         
         src_ammount = src_node.get_attr('ammount') - entry.ammount
         src_node.set_attr('ammount', src_ammount)        
@@ -279,9 +278,9 @@ class App:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('entries_file',  type=str, help='spread sheet of accouting entries')
-    parser.add_argument('sink_label',  type=str, help='sink node label')
-    parser.add_argument('dot_file',  type=str, help='dot file name')
+    parser.add_argument('entries_file', type=str, help='spread sheet of accouting entries')
+    parser.add_argument('sink_label',   type=str, help='sink node label')
+    parser.add_argument('dot_file',     type=str, help='dot file name')
     parser.add_argument('path_report',  type=str, help='path report file name')
     args = parser.parse_args()
     app = App(args.entries_file, args.sink_label, args.dot_file, args.path_report)
