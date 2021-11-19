@@ -90,6 +90,8 @@ class App:
             node = graph.add_node(label)
             node.set_attr('ammount', 0.0)
             node.set_attr('inputed_ammount', 0.0)
+            node.set_attr('received_ammount', 0.0)
+            node.set_attr('transferred_ammount', 0.0)
         return node
         
     def handle_direct_loading(self, graph, entry):
@@ -155,10 +157,18 @@ class App:
             time = self.tick()
             edge.set_attr('time', [time])
         
+        # update the balance of the source node
         src_ammount = src_node.get_attr('ammount') - entry.ammount
         src_node.set_attr('ammount', src_ammount)        
+        # update the total transferred ammount of the source node
+        transf_ammount = src_node.get_attr('transferred_ammount') + entry.ammount
+        src_node.set_attr('transferred_ammount', transf_ammount)
+        # update the balace of the destination node
         dst_ammount = dst_node.get_attr('ammount') + entry.ammount
         dst_node.set_attr('ammount', dst_ammount)
+        # update the total received ammount of the destination node
+        received_ammount = dst_node.get_attr('received_ammount') + entry.ammount
+        dst_node.set_attr('received_ammount', received_ammount)
         
     def create_graph(self, entries):
         logger.info('creating graph')
@@ -173,14 +183,9 @@ class App:
             else:
                 self.handle_account_transfer(graph, entry)
         return graph
-    
-    def generate_graph(self, graph):
-        logger.info(f'generating dotfile')
-        presenter = GraphPresenter(graph)
-        with open(self.dot_file, "w") as fh:
-            print(presenter.generate_dot(), file=fh)
             
     def report_entries(self, xlsx_writer, entries):
+        # TODO: move to presenter
         logger.info('generating accounting entries sheet')
         columns = { 'DESTINO': [], 'ORIGEM': [], 'VALOR': [] }
         for entry in entries:
@@ -191,6 +196,7 @@ class App:
         df_entries.to_excel(xlsx_writer, sheet_name='PARTIDAS')
 
     def report_balances(self, xlsx_writer, graph):
+        # TODO: move to presenter
         logger.info('generating balance sheet')
         columns = {
             'ORIGEM'                : []
@@ -205,27 +211,36 @@ class App:
         df_entries.to_excel(xlsx_writer, sheet_name='SALDOS')
         
     def report_paths(self, xlsx_writer, paths):
+        # TODO: move to presenter
         logger.info('generating paths sheet')
         columns = {
-            'CAMINHO'               : []
-        ,   'ORIGEM'                : []
-        ,   'DESTINO'               : []
-        ,   'PERCENTUAL'            : []
-        ,   'ENTRADA_DIRETA_ORIGEM' : []
-        ,   'REPASSE_RESULTANTE'    : []
+            'CAMINHO'                   : []
+        ,   'ORIGEM'                    : []
+        ,   'DESTINO'                   : []
+        ,   'PERCENTUAL'                : []
+        ,   'ENTRADA_DIRETA_ORIGEM'     : []
+        ,   'ENTRADA_INDIRETA_ORIGEM'   : []
+        ,   'REPASSE_RESULTANTE'        : []
+        ,   'MIN_T'                     : []
+        ,   'MAX_T'                     : []
         }
         for path_id, path in enumerate(paths):
             pct = path.pct 
-            columns['CAMINHO'               ].append(path_id + 1)
-            columns['ORIGEM'                ].append(path.from_label)
-            columns['DESTINO'               ].append(path.to_label)
-            columns['PERCENTUAL'            ].append(pct * 100)
-            columns['ENTRADA_DIRETA_ORIGEM' ].append(path.inputed_ammount)
-            columns['REPASSE_RESULTANTE'    ].append(path.inputed_ammount * pct)
+            columns['CAMINHO'                 ].append(path_id + 1)
+            columns['ORIGEM'                  ].append(path.from_label)
+            columns['DESTINO'                 ].append(path.to_label)
+            columns['PERCENTUAL'              ].append(pct * 100)
+            columns['ENTRADA_DIRETA_ORIGEM'   ].append(path.inputed_ammount)
+            columns['ENTRADA_INDIRETA_ORIGEM' ].append(path.received_ammount)
+            columns['REPASSE_RESULTANTE'      ].append((path.received_ammount + path.inputed_ammount * pct))
+            columns['MIN_T'                   ].append(path.min_t)
+            columns['MAX_T'                   ].append(path.max_t)
+            
         df_entries = pd.DataFrame(columns)
         df_entries.to_excel(xlsx_writer, sheet_name='CAMINHOS')
 
     def report_segments(self, xlsx_writer, paths):
+        # TODO: move to presenter
         logger.info('generating segments sheet')
         columns = {
             'CAMINHO'               : []
@@ -234,10 +249,14 @@ class App:
         ,   'PERCENTUAL'            : []
         ,   'ENTRADA_DIRETA_ORIGEM' : []
         ,   'REPASSE_RESULTANTE'    : []
+        ,   'MIN_T'                 : []
+        ,   'MAX_T'                 : []
         ,   'SEGMENTO'              : []
         ,   'SEG_ORIGEM'            : []
         ,   'SEG_DESTINO'           : []
         ,   'SEG_PERCENTUAL'        : []
+        ,   'SEG_MIN_T'             : []
+        ,   'SEG_MAX_T'             : []
         }
         for path_id, path in enumerate(paths):
             pct = path.pct 
@@ -249,15 +268,23 @@ class App:
                 columns['PERCENTUAL'            ].append(path.pct * 100.0)
                 columns['ENTRADA_DIRETA_ORIGEM' ].append(path.inputed_ammount)
                 columns['REPASSE_RESULTANTE'    ].append(path.inputed_ammount * path.pct)
-                columns['SEGMENTO'              ].append(segment_id+1)
+                columns['MIN_T'                 ].append(path.segments[0].min_t)
+                columns['MAX_T'                 ].append(path.segments[-1].max_t)
+                columns['SEGMENTO'              ].append(segment_id + 1)
                 columns['SEG_ORIGEM'            ].append(segment.from_label)
                 columns['SEG_DESTINO'           ].append(segment.to_label)
                 columns['SEG_PERCENTUAL'        ].append(segment.pct * 100.0)
+                columns['SEG_MIN_T'             ].append(segment.min_t)
+                columns['SEG_MAX_T'             ].append(segment.max_t)
             
         df_entries = pd.DataFrame(columns)
         df_entries.to_excel(xlsx_writer, sheet_name='SEGMENTOS')
         
     def report_result(self, graph, sink_label, entries):
+        # TODO: move to presenter
+        presenter = GraphPresenter(graph)
+        presenter.compute_pcts()
+        
         logger.info('creating path report')
         paths = Path.build_paths(sink_label, graph)
         xlsx_writer = pd.ExcelWriter(self.path_report)
@@ -267,12 +294,16 @@ class App:
         self.report_paths(xlsx_writer, paths)
         self.report_segments(xlsx_writer, paths)
         xlsx_writer.save()
+
+        logger.info(f'generating dotfile')
+        with open(self.dot_file, "w") as fh:
+            print(presenter.generate_dot(), file=fh)
+        
     
     def run(self):
         logger.info('starting loader - version %d.%d.%d', *self.VERSION)    
         entries = self.get_entries()
         graph = self.create_graph(entries)
-        self.generate_graph(graph)
         self.report_result(graph, sink_label=self.sink_label, entries=entries)
         logger.info('finished')
 

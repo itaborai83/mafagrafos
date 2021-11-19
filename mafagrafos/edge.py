@@ -39,3 +39,4 @@ class Edge:
     
     def edge_key(self):
         return (self.from_id, self.to_id)
+        

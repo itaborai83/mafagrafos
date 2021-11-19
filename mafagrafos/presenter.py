@@ -21,7 +21,7 @@ class GraphPresenter:
                 edge_pct_txt = '{:.3f}%'.format(edge_pct) 
                 edge.set_attr('pct', edge_pct)
                 edge.set_attr('pct_txt', edge_pct_txt)
-                
+                    
     def process_node(self, node):
         ammount = node.get_attr('ammount')
         label = self.in_double_quotes(node.label + "\\n$" + str(ammount))
@@ -44,7 +44,6 @@ class GraphPresenter:
         
     def generate_dot(self):
         lines = []
-        self.compute_pcts()
         graph_name = self.in_double_quotes(self.graph.name)
         lines.append("digraph " + graph_name + "{")
         lines.append(f"    node[shape = rect];")
