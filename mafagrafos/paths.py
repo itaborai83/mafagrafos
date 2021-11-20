@@ -107,12 +107,12 @@ class Path:
         
     @classmethod
     def _build_path(klass, head_node, edge, tail_node, curr_path, graph, acc):
-        print(head_node)
-        print(edge)
-        print(tail_node)
-        for segment in curr_path.segments:
-            print("\t", segment)
-        print()
+        #print(head_node)
+        #print(edge)
+        #print(tail_node)
+        #for segment in curr_path.segments:
+        #    print("\t", segment)
+        #print()
         
         if curr_path.segment_count > 0 and not curr_path.is_temporally_consistent():
             # if the head node is the head of a temporally inconsistent path.
@@ -121,13 +121,23 @@ class Path:
             
             curr_path = None # throw away the current path and adjust the last added path
             curr_path = acc[-1]
-            head_node = tail_node 
+            head_node = tail_node # previous head node
+            tail_node_label = curr_path.segments[0].to_label
+            tail_node = graph.get_node_by_label(tail_node_label) # previous tail node
+            edge = graph.get_edge(head_node.label, tail_node.label) # previous edge linking previous head node to tail node
+            assert edge
+            
             # compute the edge pct of a temporally inconsistent node
             edge_ammount        = edge.get_attr('ammount')
             node_ammount        = head_node.get_attr('ammount')
             received_ammount    = head_node.get_attr('received_ammount') # get inputed_ammount from all descending nodes
             inputed_ammount     = head_node.get_attr('inputed_ammount')
-            edge_pct            = edge_ammount / (node_ammount + received_ammount)
+            transferred_ammount = head_node.get_attr('transferred_ammount')
+            #edge_pct            = edge_ammount / (node_ammount + received_ammount)
+            edges_sum           = transferred_ammount + inputed_ammount
+            # discount the received_ammount because it is has not happened yet
+            edges_sum          -= received_ammount 
+            edge_pct            = edge_ammount / edges_sum
             
             # the pct stored within the graph needs to be updated            
             # TODO: put this in a saner place
