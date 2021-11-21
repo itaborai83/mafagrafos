@@ -287,11 +287,11 @@ class Graph:
             assert edge
             
             # compute the edge pct of a temporally inconsistent node
-            edge_ammount        = edge.get_attr('ammount')
-            node_ammount        = head_node.get_attr('ammount')
-            received_ammount    = head_node.get_attr('received_ammount') # get inputed_ammount from all descending nodes
-            inputed_ammount     = head_node.get_attr('inputed_ammount')
-            transferred_ammount = head_node.get_attr('transferred_ammount')
+            edge_ammount        = edge.get_attr('ammount').current_value
+            node_ammount        = head_node.get_attr('ammount').current_value
+            received_ammount    = head_node.get_attr('received_ammount').current_value # get inputed_ammount from all descending nodes
+            inputed_ammount     = head_node.get_attr('inputed_ammount').current_value
+            transferred_ammount = head_node.get_attr('transferred_ammount').current_value
             #edge_pct            = edge_ammount / (node_ammount + received_ammount)
             edges_sum           = transferred_ammount + inputed_ammount
             # discount the received_ammount because it is has not happened yet
@@ -315,7 +315,7 @@ class Graph:
             # if the head node is the head of a temporally consistent path.
             # use the precomputed edge percentual. DO NOT take into account the received_ammount of the tail_node
             curr_path.received_ammount  = 0.0
-            curr_path.inputed_ammount   = head_node.get_attr('inputed_ammount')
+            curr_path.inputed_ammount   = head_node.get_attr('inputed_ammount').current_value
             acc.append(curr_path)
 
         # continue processing a temporally consistent path with 1 or more nodes in the path

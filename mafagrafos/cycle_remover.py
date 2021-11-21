@@ -10,6 +10,7 @@ from mafagrafos.acc_entry import *
 from mafagrafos.graph import *
 from mafagrafos.presenter import *
 from mafagrafos.paths import *
+from mafagrafos.timed_value import *
 
 import mafagrafos.util as util
 
@@ -88,46 +89,48 @@ class App:
         if node is None:
             logger.info(f"adding node '{label}'")
             node = graph.add_node(label)
-            node.set_attr('ammount', 0.0)
-            node.set_attr('inputed_ammount', 0.0)
-            node.set_attr('received_ammount', 0.0)
-            node.set_attr('transferred_ammount', 0.0)
+            node.set_attr('ammount', TimedValue())
+            node.set_attr('inputed_ammount', TimedValue())
+            node.set_attr('received_ammount', TimedValue())
+            node.set_attr('transferred_ammount', TimedValue())
         return node
         
     def handle_direct_loading(self, graph, entry):
+        time = self.tick()
         dst_label = self.get_remapped_label(entry.dst)
         dst_node = graph.get_node_by_label(dst_label)
-        ammount = dst_node.get_attr('ammount')
-        inputed_ammount = dst_node.get_attr('inputed_ammount')
-        dst_node.set_attr('ammount', ammount + entry.ammount)
-        dst_node.set_attr('inputed_ammount', inputed_ammount + entry.ammount)
+        dst_node.get_attr('ammount').update_at(time, entry.ammount)
+        dst_node.get_attr('inputed_ammount').update_at(time, entry.ammount)
     
     def transfer_ammount_through_time(self, graph, orig_dst_label):
+        # get the last two label remappings and their respective nodes
         remappings = self.get_label_remappings(orig_dst_label)
         assert len(remappings) >= 2
         current_label = remappings[-1]
         prev_label    = remappings[-2]
         current_node  = graph.get_node_by_label(current_label) 
+        assert current_node
         prev_node     = graph.get_node_by_label(prev_label) 
-        prev_node_ammount = prev_node.get_attr('ammount')
-        curr_node_ammount = current_node.get_attr('ammount')
+        assert prev_node
+        # extract the current balance from the older node and see if a balance time transfer really needs to be done
+        prev_node_ammount = prev_node.get_attr('ammount').current_value
+        curr_node_ammount = current_node.get_attr('ammount').current_value
         assert curr_node_ammount == 0.0
         if prev_node_ammount == 0.0:
             # do not create a time transfer when there is nothing to transfer
             return
-        assert current_node
-        assert prev_node
-        edge = graph.get_edge(prev_label, current_label)
-        assert edge is None
+            
         # create the edge
+        edge = graph.get_edge(prev_label, current_label)
+        assert edge is None        
+        time = self.tick()
         edge = graph.add_edge(prev_label, current_label)
         edge_ammount = prev_node_ammount
-        prev_node_ammount -= edge_ammount
-        curr_node_ammount += edge_ammount
-        prev_node.set_attr('ammount', prev_node_ammount)
-        current_node.set_attr('ammount', curr_node_ammount)
-        edge.set_attr('ammount', edge_ammount)
-        edge.set_attr('time', [ self.tick() ])
+        prev_node.get_attr('ammount').update_at(time, -prev_node_ammount)
+        current_node.get_attr('ammount').update_at(time, prev_node_ammount)
+        edge.set_attr('ammount', TimedValue())
+        edge.get_attr('ammount').update_at(time, prev_node_ammount)
+        edge.set_attr('time', [ times ])
         edge.set_attr('pct', 0.0)
         
     def handle_account_transfer(self, graph, entry):
@@ -140,9 +143,8 @@ class App:
         edge = graph.get_edge(src_label, dst_label)
         if edge is not None:
             # existing edge does not add a cycle
-            edge_ammount = edge.get_attr('ammount') + entry.ammount
-            edge.set_attr('ammount', edge_ammount)
             time = self.tick()
+            edge.get_attr('ammount').update_at(time, entry.ammount)
             edge.get_attr('time').append(time)
         else:
             # try to create the edge
@@ -153,22 +155,19 @@ class App:
                 dst_node = self.add_node_if_needed(graph, dst_label) # wll always create the node
                 self.transfer_ammount_through_time(graph, orig_dst_label) # transfer the all the remaining balance to the new node
                 edge = graph.add_edge(src_label, dst_label)
-            edge.set_attr('ammount', entry.ammount)
             time = self.tick()
+            edge.set_attr('ammount', TimedValue())
+            edge.get_attr('ammount').update_at(time, entry.ammount)
             edge.set_attr('time', [time])
         
         # update the balance of the source node
-        src_ammount = src_node.get_attr('ammount') - entry.ammount
-        src_node.set_attr('ammount', src_ammount)        
+        src_node.get_attr('ammount').update_at(time, - entry.ammount)
         # update the total transferred ammount of the source node
-        transf_ammount = src_node.get_attr('transferred_ammount') + entry.ammount
-        src_node.set_attr('transferred_ammount', transf_ammount)
+        src_node.get_attr('transferred_ammount').update_at(time, entry.ammount)
         # update the balace of the destination node
-        dst_ammount = dst_node.get_attr('ammount') + entry.ammount
-        dst_node.set_attr('ammount', dst_ammount)
+        dst_node.get_attr('ammount').update_at(time, entry.ammount)
         # update the total received ammount of the destination node
-        received_ammount = dst_node.get_attr('received_ammount') + entry.ammount
-        dst_node.set_attr('received_ammount', received_ammount)
+        dst_node.get_attr('received_ammount').update_at(time, entry.ammount)
         
     def create_graph(self, entries):
         logger.info('creating graph')
@@ -205,8 +204,8 @@ class App:
         }
         for node in graph.nodes:
             columns['ORIGEM'        ].append(node.label)
-            columns['ENTRADA_DIRETA'].append(node.get_attr('inputed_ammount'))
-            columns['SALDO'         ].append(node.get_attr('ammount'))
+            columns['ENTRADA_DIRETA'].append(node.get_attr('inputed_ammount').current_value)
+            columns['SALDO'         ].append(node.get_attr('ammount').current_value)
         df_entries = pd.DataFrame(columns)
         df_entries.to_excel(xlsx_writer, sheet_name='SALDOS')
         

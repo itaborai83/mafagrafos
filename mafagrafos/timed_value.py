@@ -47,3 +47,10 @@ class TimedValue:
             else:
                 result = entry.value
         return 0.0
+    
+    @property
+    def current_value(self):
+        if self.last_time is None:
+            return 0.0
+        else:
+            return self.entries[-1].value
