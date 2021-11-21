@@ -286,7 +286,7 @@ class App:
         presenter.compute_pcts()
         
         logger.info('creating path report')
-        paths = Path.build_paths(sink_label, graph)
+        paths = graph.build_paths(sink_label)
         xlsx_writer = pd.ExcelWriter(self.path_report)
         # write accouting entries
         self.report_entries(xlsx_writer, entries)

@@ -1,5 +1,6 @@
 from mafagrafos.node import Node
 from mafagrafos.edge import Edge
+from mafagrafos.paths import Segment, Path
 
 class StopSearch(Exception):pass
 
@@ -101,6 +102,8 @@ class NodeVisitor:
 class Graph:
     
     __slots__ = ["name", "allow_cycles", "next_node_id", "nodes", "labels", "node_to_index", "index_to_node", "edges", "edge_order", "visitor", "data"]
+    
+    SHOW_PATH_BUILDING = False
     
     def __init__(self, name, allow_cycles=False):
         assert name
@@ -250,3 +253,92 @@ class Graph:
         #print(self.node_to_index)
         #print(self.index_to_node)
         return edge
+        
+    def build_paths(self, sink_label):
+        # graph is a DAG, so no cycles
+        assert not self.allow_cycles
+        head_node = self.get_node_by_label(sink_label)
+        assert head_node
+        curr_path = Path()
+        acc = []
+        self._build_path(head_node, None, None, curr_path, acc)
+        return acc
+        
+    def _build_path(self, head_node, edge, tail_node, curr_path, acc):
+        if self.SHOW_PATH_BUILDING:
+            print(head_node)
+            print(edge)
+            print(tail_node)
+            for segment in curr_path.segments:
+                print("\t", segment)
+            print()
+        
+        if curr_path.segment_count > 0 and not curr_path.is_temporally_consistent():
+            # if the head node is the head of a temporally inconsistent path.
+            # recompute the edge percentual taking into account the received_ammount of the tail_node
+            # and then pop off the head node from the path
+            
+            curr_path = None # throw away the current path and adjust the last added path
+            curr_path = acc[-1]
+            head_node = tail_node # previous head node
+            tail_node_label = curr_path.segments[0].to_label
+            tail_node = self.get_node_by_label(tail_node_label) # previous tail node
+            edge = self.get_edge(head_node.label, tail_node.label) # previous edge linking previous head node to tail node
+            assert edge
+            
+            # compute the edge pct of a temporally inconsistent node
+            edge_ammount        = edge.get_attr('ammount')
+            node_ammount        = head_node.get_attr('ammount')
+            received_ammount    = head_node.get_attr('received_ammount') # get inputed_ammount from all descending nodes
+            inputed_ammount     = head_node.get_attr('inputed_ammount')
+            transferred_ammount = head_node.get_attr('transferred_ammount')
+            #edge_pct            = edge_ammount / (node_ammount + received_ammount)
+            edges_sum           = transferred_ammount + inputed_ammount
+            # discount the received_ammount because it is has not happened yet
+            edges_sum          -= received_ammount 
+            edge_pct            = edge_ammount / edges_sum
+            
+            # the pct stored within the graph needs to be updated            
+            # TODO: put this in a saner place
+            edge_pct_txt = '{:.2f}%'.format(edge_pct*100.0) 
+            edge.set_attr('pct', edge_pct)
+            edge.set_attr('pct_txt', edge_pct_txt)
+            
+            curr_path.inputed_ammount   = inputed_ammount
+            curr_path.received_ammount  = received_ammount
+            curr_path.segments[0].pct   = edge_pct
+            # since the head not is not temporally consistent, stop building this path
+            # do not read the path to the accumulator
+            return
+        
+        elif curr_path.segment_count > 0 and curr_path.is_temporally_consistent():
+            # if the head node is the head of a temporally consistent path.
+            # use the precomputed edge percentual. DO NOT take into account the received_ammount of the tail_node
+            curr_path.received_ammount  = 0.0
+            curr_path.inputed_ammount   = head_node.get_attr('inputed_ammount')
+            acc.append(curr_path)
+
+        # continue processing a temporally consistent path with 1 or more nodes in the path
+        old_path = curr_path
+        new_tail_node = head_node
+        for from_id in new_tail_node.in_edges:
+            # retrieve the start node of the edge
+            new_head_node = self.get_node_by_id(from_id)
+            assert new_head_node
+            # use the node label to retrieve the edge itself
+            edge = self.get_edge(new_head_node.label, new_tail_node.label)
+            assert edge
+            # retrieve the edge_pct
+            edge_pct = edge.get_attr('pct') / 100.0
+            assert edge_pct
+            # retrieve the fista and last transfer time from the edge
+            min_t = edge.get_attr('time')[0]
+            max_t = edge.get_attr('time')[-1]
+            assert min_t <= max_t
+            # create a new path cloning the old path 
+            curr_path = old_path.clone()
+            # push a new segment onto the first position of the current path
+            segment = Segment(new_head_node.label, new_tail_node.label, edge_pct, min_t, max_t)
+            curr_path.push_segment(segment)
+            self._build_path(new_head_node, edge, new_tail_node, curr_path, acc)
+        

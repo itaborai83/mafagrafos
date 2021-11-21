@@ -187,22 +187,25 @@ class Path:
     
 class PathV2:
     
-    __slots__ = ["from_label", "to_label", "segments", "segment_count" ]
+    __slots__ = ["from_label", "to_label", "segments", "segment_count", "inputed_ammount", "received_ammount" ]
     
     def __init__(self):
         self.from_label         = None
         self.to_label           = None
         self.segments           = []
         self.segment_count      = 0
-
+        self.inputed_ammount    = 0.0
+        self.received_ammount   = 0.0
+        
     def __eq__(self, other):
         if other is None:
             return False
-        return self.from_label      == other.from_label     and \
-               self.to_label        == other.to_label       and \
-               self.segment_count   == other.segment_count  and \
-               self.segments        == other.segments
-               
+        return self.from_label          == other.from_label         and \
+               self.to_label            == other.to_label           and \
+               self.segment_count       == other.segment_count      and \
+               self.segments            == other.segments           and \
+               self.inputed_ammount     == other.inputed_ammount    and \
+               self.received_ammount    == other.received_ammount
     
     #def push_segment(self, from_label, to_label, pct, min_t, max_t):
     #    segment = Segment(from_label, to_label, pct, min_t, max_t)
@@ -210,7 +213,7 @@ class PathV2:
     #    self.segment_count += 1
     
     def push_segment(self, segment):
-        assert self.segment_count == 0 or segment.to_label == self.from_label
+        assert self.segment_count == 0 or segment.to_label == self.from_label, (self.segment_count, segment.to_label, self.from_label)
         self.segments.insert(0, segment) # this might be slow - O(n)
         self.segment_count += 1
         self.from_label = segment.from_label
