@@ -37,7 +37,7 @@ class Segment:
 class Path:
     
     __slots__ = ["from_label", "to_label", "segments", "segment_count", "inputed_ammount", "received_ammount"]
-    
+    """
     def __init__(self, from_label, to_label):
         self.from_label         = from_label
         self.to_label           = to_label
@@ -64,7 +64,7 @@ class Path:
         self.segment_count -= 1
     
     def clone(self):
-        result = Path(self.from_label, self.to_label)
+        result = Path()
         result.segment_count = self.segment_count
         result.segments = self.segments[:]
         return result
@@ -183,3 +183,79 @@ class Path:
             # push a new segment onto the first position of the current path
             curr_path.push_segment(new_head_node.label, new_tail_node.label, edge_pct, min_t, max_t)
             klass._build_path(new_head_node, edge, new_tail_node, curr_path, graph, acc)
+    """
+    
+class PathV2:
+    
+    __slots__ = ["from_label", "to_label", "segments", "segment_count" ]
+    
+    def __init__(self):
+        self.from_label         = None
+        self.to_label           = None
+        self.segments           = []
+        self.segment_count      = 0
+
+    def __eq__(self, other):
+        if other is None:
+            return False
+        return self.from_label      == other.from_label     and \
+               self.to_label        == other.to_label       and \
+               self.segment_count   == other.segment_count  and \
+               self.segments        == other.segments
+               
+    
+    #def push_segment(self, from_label, to_label, pct, min_t, max_t):
+    #    segment = Segment(from_label, to_label, pct, min_t, max_t)
+    #    self.segments.insert(0, segment) # this might be slow - O(n)
+    #    self.segment_count += 1
+    
+    def push_segment(self, segment):
+        assert self.segment_count == 0 or segment.to_label == self.from_label
+        self.segments.insert(0, segment) # this might be slow - O(n)
+        self.segment_count += 1
+        self.from_label = segment.from_label
+        if self.segment_count == 1:
+            self.to_label = segment.to_label
+        
+    def pop_segment(self):
+        assert self.segment_count > 0
+        self.segments.pop(0)
+        self.segment_count -= 1
+        if self.segment_count == 0:
+            self.from_label = None
+            self.to_label = None
+        else:
+            self.from_label = self.segments[0].from_label
+    
+    def clone(self):
+        result = Path()
+        result.from_label    = self.from_label
+        result.to_label      = self.to_label
+        result.segment_count = self.segment_count
+        result.segments      = self.segments[:]
+        return result
+    
+    def is_temporally_consistent(self):
+        # a temporally consistent path is one in which max(T(head_node)) <= max(T(tail_node))
+        assert self.segment_count >= 0
+        if self.segment_count < 2:
+            return True
+        max_t_head = self.segments[0].max_t
+        max_t_tail = self.segments[1].max_t
+        return max_t_head <= max_t_tail
+
+    @property
+    def pct(self):
+        return reduce(mul, [s.pct for s in self.segments ], 1.0)
+
+    @property
+    def min_t(self):
+        assert self.segment_count > 0
+        return self.segments[0].min_t
+    
+    @property
+    def max_t(self):
+        assert self.segment_count > 0
+        return self.segments[-1].max_t
+        
+Path = PathV2        
