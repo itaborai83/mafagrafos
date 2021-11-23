@@ -152,34 +152,67 @@ class CycleRemover:
             edge.get_attr('time').append(time)
         else:
             # edge would create a cycle
-            while edge is None: # I don't think this needs to be a loop
-                # a cycle would be created
-                dst_label = self.add_remapped_label(orig_dst_label)
-                dst_node = self.add_node_if_needed(graph, dst_label) # wll always create the node
-                self.transfer_ammount_through_time(graph, orig_dst_label) # transfer the all the remaining balance to the new node
-                edge = self.add_edge_if_needed(graph, src_node, dst_node)
+            #while edge is None: # I don't think this needs to be a loop
+            # a cycle would be created
+            dst_label = self.add_remapped_label(orig_dst_label)
+            dst_node = self.add_node_if_needed(graph, dst_label) # wll always create the node
+            self.transfer_ammount_through_time(graph, orig_dst_label) # transfer the all the remaining balance to the new node
+            edge = self.add_edge_if_needed(graph, src_node, dst_node)
             time = self.tick()
             edge.get_attr('ammount').update_at(time, entry.ammount)
             edge.get_attr('time').append(time)
-        
         # update the balance of the source node
         src_node.get_attr('ammount').update_at(time, - entry.ammount)
         # update the total transferred ammount of the source node
         src_node.get_attr('transferred_ammount').update_at(time, entry.ammount)
-        # update the balace of the destination node
+        # update the balance of the destination node
         dst_node.get_attr('ammount').update_at(time, entry.ammount)
         # update the total received ammount of the destination node
         dst_node.get_attr('received_ammount').update_at(time, entry.ammount)
+    
+    def compute_edge_pct(self, src_node, edge, dst_node, parent_edge):
+        assert parent_edge is None or parent_edge.from_id == dst_node.node_id
+        assert dst_node.node_id == edge.to_id
+        assert edge.from_id == src_node.node_id
+        max_time = edge.get_attr('time')[-1]
+        if parent_edge is not None:
+            parent_max_time = parent_edge.get_attr('time')[-1]
+            max_time = min(parent_max_time, max_time)
+            
+        # compute the edge pct at max_time
+        edge_ammount        = edge.get_attr('ammount').value_at(max_time)
+        node_ammount        = src_node.get_attr('ammount').value_at(max_time)
+        inputed_ammount     = src_node.get_attr('inputed_ammount').value_at(max_time)
+        transferred_ammount = src_node.get_attr('transferred_ammount').value_at(max_time)
+        received_ammount    = src_node.get_attr('received_ammount').value_at(max_time)
+        #edges_sum           = node_ammount + edge_ammount + transferred_ammount
+        edges_sum           = node_ammount + transferred_ammount
+        edge_pct            = edge_ammount / edges_sum        
         
+        #print()
+        #print(f'edge_times          = {edge.get_attr("time")}')
+        #print(f'max_time            = {max_time}')
+        #print(f'edge_ammount        = {edge_ammount}/{edge.get_attr("ammount")}')
+        #print(f'node_ammount        = {src_node.get_attr("ammount")}')
+        #print(f'inputed_ammount     = {src_node.get_attr("inputed_ammount")}')
+        #print(f'transferred_ammount = {src_node.get_attr("transferred_ammount")}')
+        #print(f'edges_sum           = {edges_sum}')
+        #print(f'edge_pct            = {edge_pct}')
+        
+        return edge_pct
+    
+    def handle_entry(self, graph, entry):
+        self.add_node_if_needed(graph, entry.src)
+        self.add_node_if_needed(graph, entry.dst)
+        if entry.src is None:
+            self.handle_direct_loading(graph, entry)
+        else:
+            self.handle_account_transfer(graph, entry)
+            
     def create_graph(self, graph_name, entries):
         self.info('creating graph')
         graph = Graph(graph_name, allow_cycles=False)
 
         for entry in entries:
-            self.add_node_if_needed(graph, entry.src)
-            self.add_node_if_needed(graph, entry.dst)
-            if entry.src is None:
-                self.handle_direct_loading(graph, entry)
-            else:
-                self.handle_account_transfer(graph, entry)
+            self.handle_entry(self, graph, entry)
         return graph
