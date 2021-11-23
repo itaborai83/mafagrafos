@@ -170,14 +170,20 @@ class CycleRemover:
         # update the total received ammount of the destination node
         dst_node.get_attr('received_ammount').update_at(time, entry.ammount)
     
-    def compute_edge_pct(self, src_node, edge, dst_node, parent_edge):
-        assert parent_edge is None or parent_edge.from_id == dst_node.node_id
+    def compute_edge_pct(self, src_node, edge, dst_node, parent_max_time=None):
         assert dst_node.node_id == edge.to_id
         assert edge.from_id == src_node.node_id
-        max_time = edge.get_attr('time')[-1]
-        if parent_edge is not None:
-            parent_max_time = parent_edge.get_attr('time')[-1]
-            max_time = min(parent_max_time, max_time)
+        times = edge.get_attr('time')
+        assert len(times) > 0
+        if parent_max_time is None:
+            max_time = edge.get_attr('time')[-1]
+        else:
+            max_time = None
+            for time in reversed(edge.get_attr('time')):
+                if time <= parent_max_time:
+                    max_time = time
+            if max_time is None:
+                return 0.0, None
             
         # compute the edge pct at max_time
         edge_ammount        = edge.get_attr('ammount').value_at(max_time)
@@ -199,7 +205,7 @@ class CycleRemover:
         #print(f'edges_sum           = {edges_sum}')
         #print(f'edge_pct            = {edge_pct}')
         
-        return edge_pct
+        return edge_pct, max_time
     
     def handle_entry(self, graph, entry):
         self.add_node_if_needed(graph, entry.src)

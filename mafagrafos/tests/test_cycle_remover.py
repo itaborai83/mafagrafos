@@ -195,11 +195,13 @@ class TestCycleRemover(unittest.TestCase):
         #        print(f"\treceived_ammount    = {received_ammount}")        
         #print()
         
-        edge_ca_pct = self.cycrem.compute_edge_pct(node_c, edge_ca, node_a, None)
+        edge_ca_pct, max_time = self.cycrem.compute_edge_pct(node_c, edge_ca, node_a, None)
         self.assertEqual(edge_ca_pct, 25.0/100.0)
+        self.assertEqual(max_time, 1)
         
-        edge_cb_pct = self.cycrem.compute_edge_pct(node_c, edge_cb, node_b, None)
+        edge_cb_pct, max_time = self.cycrem.compute_edge_pct(node_c, edge_cb, node_b, None)
         self.assertEqual(edge_cb_pct, 50.0/(75.0 + 25.0))
+        self.assertEqual(max_time, 2)
 
     
     def test_it_compute_the_edge_pct_of_a_non_root_edge(self):
@@ -217,6 +219,7 @@ class TestCycleRemover(unittest.TestCase):
         node_c = graph.get_node_by_label('C')
         edge_cb = graph.get_edge('C', 'B')
         edge_ba = graph.get_edge('B', 'A')
+        parent_max_time = edge_ba.get_attr('time')[-1]
         
         #print()
         #for i in range(self.cycrem.current_time):
@@ -232,7 +235,43 @@ class TestCycleRemover(unittest.TestCase):
         #        print(f"\treceived_ammount    = {received_ammount}")        
         #print()
         
-        edge_cb_pct = self.cycrem.compute_edge_pct(node_c, edge_cb, node_b, edge_ba)
+        edge_cb_pct, max_time = self.cycrem.compute_edge_pct(node_c, edge_cb, node_b, parent_max_time)
         self.assertEqual(edge_cb_pct, 50.0/100.0)
+        self.assertEqual(max_time, 1)
         
         
+    def test_it_compute_the_edge_pct_of_an_inconsistent_edge(self):    
+        graph = Graph('Test graph', allow_cycles=False)
+        entry_1 = AccEntry('B', None, 100.0)
+        entry_2 = AccEntry('C', None, 100.0)
+        entry_3 = AccEntry('A', 'B', 50.0)
+        entry_4 = AccEntry('B', 'C', 50.0)
+        self.cycrem.handle_entry(graph, entry_1)
+        self.cycrem.handle_entry(graph, entry_2)
+        self.cycrem.handle_entry(graph, entry_3)
+        self.cycrem.handle_entry(graph, entry_4)
+        node_a = graph.get_node_by_label('A')
+        node_b = graph.get_node_by_label('B')
+        node_c = graph.get_node_by_label('C')
+        edge_cb = graph.get_edge('C', 'B')
+        edge_ba = graph.get_edge('B', 'A')
+        parent_max_time = edge_ba.get_attr('time')[-1]
+    
+        #print()
+        #for i in range(self.cycrem.current_time):
+        #    for node in graph.nodes:
+        #        node_ammount        = node.get_attr('ammount').value_at(i)
+        #        inputed_ammount     = node.get_attr('inputed_ammount').value_at(i)
+        #        transferred_ammount = node.get_attr('transferred_ammount').value_at(i)
+        #        received_ammount    = node.get_attr('received_ammount').value_at(i)
+        #        print(f"{node.label}@{i}")
+        #        print(f"\tammount             = {node_ammount}")
+        #        print(f"\tinputed_ammount     = {inputed_ammount}")
+        #        print(f"\ttransferred_ammount = {transferred_ammount}")
+        #        print(f"\treceived_ammount    = {received_ammount}")        
+        #print()
+        
+        edge_cb_pct, max_time = self.cycrem.compute_edge_pct(node_c, edge_cb, node_b, parent_max_time)
+        self.assertEqual(edge_cb_pct, 0.0)
+        self.assertEqual(max_time, None)
+    
