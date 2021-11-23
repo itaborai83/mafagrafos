@@ -57,4 +57,12 @@ class TestTimedValue(unittest.TestCase):
         tm.update_at(10, 100.0)
         value = tm.value_at(11)
         self.assertEqual(300.0, value)
+    
+    def test_it_returns_the_correct_timed_value(self):
+        tm = TimedValue()
+        tm.update_at(1, 25.0)
+        tm.update_at(2, 50.0)
         
+        self.assertEqual(tm.value_at(0), 0.0)
+        self.assertEqual(tm.value_at(1), 25.0)
+        self.assertEqual(tm.value_at(2), 25.0 + 50.0)
