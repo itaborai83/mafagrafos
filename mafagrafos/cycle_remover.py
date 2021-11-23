@@ -17,7 +17,9 @@ import mafagrafos.util as util
 logger = util.get_logger('cycle_remover')
 
 class CycleRemover:
-        
+    
+    SHOW_PATH_BUILDING = False
+    
     def __init__(self, logger=None):
         self.logger         = logger
         self.labels         = {}
@@ -214,7 +216,98 @@ class CycleRemover:
             self.handle_direct_loading(graph, entry)
         else:
             self.handle_account_transfer(graph, entry)
+
+    def build_paths(self, graph, sink_label):
+        # graph is a DAG, so no cycles
+        assert not graph.allow_cycles
+        head_node = graph.get_node_by_label(sink_label)
+        assert head_node
+        curr_path = Path()
+        acc = []
+        self._build_path(graph, head_node, None, None, curr_path, acc)
+        return acc
+    
+    def _get_node_times(self, graph, src_node):
+        min_t = None
+        max_t = None
+        for dst_node_id in src_node.out_edges:
+            dst_node = graph.get_node_by_id(dst_node_id)
+            assert dst_node
+            #edge = graph.get_edge(src_node.label, dst_node.label)
+            edge = graph.get_edge(src_node.label, dst_node.label)
+            assert edge
+            times = edge.get_attr('time')
+            if min_t is None and max_t is None:
+                min_t, max_t = times[0], times[-1]
+            else:
+                min_t = min(min_t, times[0])
+                max_t = max(max_t, times[-1])
+        assert (min_t is None and max_t is None) or min_t <= max_t
+        return min_t, max_t
+        
+    def _build_path(self, graph, head_node, edge, tail_node, curr_path, acc):
+        if self.SHOW_PATH_BUILDING:
+            print(head_node)
+            print(edge)
+            print(tail_node)
+            for segment in curr_path.segments:
+                print("\t", segment)
+            print()
+        
+        min_t, max_t = self._get_node_times(graph, head_node)
+        
+        if tail_node is None: #curr_path.segment_count == 0:
+            assert edge is None
+            assert tail_node is None
+            curr_t = max_t            
+            segment = None
+        else:
+            assert edge is not None
+            assert tail_node is not None
+            if curr_path.segment_count == 0:
+                parent_curr_t   = None
+            else:
+                last_segment    = curr_path.segments[-1]
+                parent_curr_t   = last_segment.curr_t
+                
+            pct, curr_t     = self.compute_edge_pct(head_node, edge, tail_node, parent_curr_t)
+            if pct == 0.0:
+                # found a temporally inconsistent path. stop processing it
+                return
+            #print()
+            #print('------------', min_t, curr_t, max_t)
+            segment = Segment(
+                from_label  = head_node.label
+            ,   to_label    = tail_node.label
+            ,   pct         = pct
+            ,   min_t       = min_t if min_t is not None else curr_t
+            ,   curr_t      = curr_t
+            ,   max_t       = max_t if max_t is not None else curr_t
+            )
+
+        if segment:
+            curr_path.push_segment(segment)
+            curr_path.ammount             = head_node.get_attr('ammount').value_at(curr_t)
+            curr_path.inputed_ammount     = head_node.get_attr('inputed_ammount').value_at(curr_t)
+            curr_path.received_ammount    = head_node.get_attr('received_ammount').value_at(curr_t)
+            curr_path.transferred_ammount = head_node.get_attr('transferred_ammount').value_at(curr_t)
+            acc.append(curr_path)
             
+        # continue processing a temporally consistent path with 1 or more nodes in the path
+        old_path = curr_path
+        new_tail_node = head_node
+        for from_id in new_tail_node.in_edges:
+            # retrieve the start node of the edge
+            new_head_node = graph.get_node_by_id(from_id)
+            assert new_head_node
+            # use the node label to retrieve the edge itself
+            edge = graph.get_edge(new_head_node.label, new_tail_node.label)
+            assert edge
+            # create a new path cloning the old path 
+            curr_path = old_path.clone()
+            # push a new segment onto the first position of the current path
+            self._build_path(graph, new_head_node, edge, new_tail_node, curr_path, acc)
+                    
     def create_graph(self, graph_name, entries):
         self.info('creating graph')
         graph = Graph(graph_name, allow_cycles=False)

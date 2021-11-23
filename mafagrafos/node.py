@@ -34,7 +34,7 @@ class Node:
         return self.data
 
     def get_attr(self, attr):
-        return self.data.get(attr, None)
+        return self.data[ attr ]
         
     def set_attr(self, attr, value):
         self.data[attr] = value
