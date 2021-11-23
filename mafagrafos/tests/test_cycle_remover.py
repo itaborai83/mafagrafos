@@ -275,7 +275,67 @@ class TestCycleRemover(unittest.TestCase):
         self.assertEqual(edge_cb_pct, 0.0)
         self.assertEqual(max_time, None)
     
-    def test_it_lists_all_paths_ending_in_a_given_node(self):
+    def test_it_lists_all_single_segment_paths(self):
+        graph = Graph('Test graph', allow_cycles=False)
+        entry_1 = AccEntry('B', None, 100.0)
+        entry_2 = AccEntry('C', None, 100.0)
+        entry_3 = AccEntry('D', None, 100.0)
+        entry_4 = AccEntry('A', 'B', 25.0)
+        entry_5 = AccEntry('A', 'C', 50.0)
+        entry_6 = AccEntry('A', 'D', 75.0)
+        self.cycrem.handle_entry(graph, entry_1)
+        self.cycrem.handle_entry(graph, entry_2)
+        self.cycrem.handle_entry(graph, entry_3)
+        self.cycrem.handle_entry(graph, entry_4)
+        self.cycrem.handle_entry(graph, entry_5)
+        self.cycrem.handle_entry(graph, entry_6)
+                
+        paths = self.cycrem.build_paths(graph, 'A')
+        
+        print()
+        for path in paths:
+            print(path.show())
+            
+        self.assertEqual(len(paths), 3)
+
+        path_01 = paths[0]
+        self.assertEqual(path_01.from_label, "B")
+        self.assertEqual(path_01.to_label, "A")
+        self.assertEqual(path_01.min_t, 3)
+        self.assertEqual(path_01.max_t, 3)
+        self.assertEqual(path_01.segment_count, 1)
+        self.assertEqual(path_01.inputed_ammount, 100.0)
+        self.assertEqual(path_01.received_ammount, 0)
+        self.assertEqual(path_01.ammount, 75.0)
+        self.assertEqual(path_01.transferred_ammount, 25.0)
+        self.assertEqual(path_01.pct, 25.0 / (25.0 + 75.0))
+
+        path_02 = paths[1]
+        self.assertEqual(path_02.from_label, "C")
+        self.assertEqual(path_02.to_label, "A")
+        self.assertEqual(path_02.min_t, 4)
+        self.assertEqual(path_02.max_t, 4)
+        self.assertEqual(path_02.segment_count, 1)
+        self.assertEqual(path_02.inputed_ammount, 100.0)
+        self.assertEqual(path_02.received_ammount, 0)
+        self.assertEqual(path_02.ammount, 50.0)
+        self.assertEqual(path_02.transferred_ammount, 50.0)
+        self.assertEqual(path_02.pct, 50.0 / (50.0 + 50.0))
+
+        path_03 = paths[2]
+        self.assertEqual(path_03.from_label, "D")
+        self.assertEqual(path_03.to_label, "A")
+        self.assertEqual(path_03.min_t, 5)
+        self.assertEqual(path_03.max_t, 5)
+        self.assertEqual(path_03.segment_count, 1)
+        self.assertEqual(path_03.inputed_ammount, 100.0)
+        self.assertEqual(path_03.received_ammount, 0)
+        self.assertEqual(path_03.ammount, 25.0)
+        self.assertEqual(path_03.transferred_ammount, 75.0)
+        self.assertEqual(path_03.pct, 75.0 / (75.0 + 25.0))        
+        
+    @unittest.skip
+    def test_it_lists_all_paths_ending_in_a_given_node__complex(self):
         graph = Graph('Test graph', allow_cycles=False)
         entry_1 = AccEntry('D', None, 100.0)
         entry_2 = AccEntry('E', None, 50.0)
