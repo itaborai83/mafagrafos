@@ -56,8 +56,8 @@ class TimedValue:
         
         result = self.entries[-1].value
         for entry in reversed(self.entries):
-            if entry.time < time:
-                return result
+            if entry.time <= time:
+                return entry.value
             else:
                 result = entry.value
         return result
