@@ -291,11 +291,9 @@ class TestCycleRemover(unittest.TestCase):
         self.cycrem.handle_entry(graph, entry_6)
                 
         paths = self.cycrem.build_paths(graph, 'A')
-        
-        print()
-        for path in paths:
-            print(path.show())
-            
+        #print()
+        #for path in paths:
+        #    print(path.show())
         self.assertEqual(len(paths), 3)
 
         path_01 = paths[0]
@@ -333,7 +331,7 @@ class TestCycleRemover(unittest.TestCase):
         self.assertEqual(path_03.ammount, 25.0)
         self.assertEqual(path_03.transferred_ammount, 75.0)
         self.assertEqual(path_03.pct, 75.0 / (75.0 + 25.0))        
-
+    
     def test_it_lists_all_double_segment_paths(self):
         graph = Graph('Test graph', allow_cycles=False)
         entry_1 = AccEntry('D', None, 100.0)
@@ -348,6 +346,9 @@ class TestCycleRemover(unittest.TestCase):
         self.cycrem.handle_entry(graph, entry_5)
         
         paths = self.cycrem.build_paths(graph, 'A')
+        #print()
+        #for path in paths:
+        #    print(path.show())
         
         self.assertEqual(len(paths), 4)
         
@@ -388,17 +389,17 @@ class TestCycleRemover(unittest.TestCase):
         self.assertEqual(path_03.pct, 25.0 / (25.0 + 25.0))
 
         path_04 = paths[3]
-        self.assertEqual(path_02.from_label, "D")
-        self.assertEqual(path_02.to_label, "A")
-        self.assertEqual(path_02.min_t, 2) # this should be 2, not 1. Needs to take into account parent edge min(time)
-        self.assertEqual(path_02.max_t, 4)
-        self.assertEqual(path_02.segment_count, 2)
-        self.assertEqual(path_02.inputed_ammount, 100.0)
-        self.assertEqual(path_02.received_ammount, 0.0)
-        self.assertEqual(path_02.ammount, 50.0)
-        self.assertEqual(path_02.transferred_ammount, 50.0)
-        self.assertEqual(path_02.pct, path_03.pct * (50.0 / (50.0 + 50.0)))
-        
+        self.assertEqual(path_04.from_label, "D")
+        self.assertEqual(path_04.to_label, "A")
+        self.assertEqual(path_04.min_t, 2)
+        self.assertEqual(path_04.max_t, 4)
+        self.assertEqual(path_04.segment_count, 2)
+        self.assertEqual(path_04.inputed_ammount, 100.0)
+        self.assertEqual(path_04.received_ammount, 0.0)
+        self.assertEqual(path_04.ammount, 0.0)
+        self.assertEqual(path_04.transferred_ammount, 100.0)
+        self.assertEqual(path_04.pct, path_03.pct * (50.0 / (0.0 + 100.0)))
+    
     @unittest.skip
     def test_it_lists_all_paths_ending_in_a_given_node__complex(self):
         graph = Graph('Test graph', allow_cycles=False)

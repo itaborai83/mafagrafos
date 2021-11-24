@@ -50,7 +50,8 @@ class App:
         logger.info('creating graph')
         cycle_remover = CycleRemover(logger)
         graph = cycle_remover.create_graph('Test graph', entries)
-        return graph
+        paths = cycle_remover.build_paths(graph, self.sink_label)
+        return graph, paths
                             
     def report_entries(self, xlsx_writer, entries):
         # TODO: move to presenter
@@ -68,13 +69,16 @@ class App:
         logger.info('generating balance sheet')
         columns = {
             'ORIGEM'                : []
+        ,   'TEMPO'                 : []
         ,   'ENTRADA_DIRETA'        : []
         ,   'SALDO'                 : []
         }
         for node in graph.nodes:
-            columns['ORIGEM'        ].append(node.label)
-            columns['ENTRADA_DIRETA'].append(node.get_attr('inputed_ammount').current_value)
-            columns['SALDO'         ].append(node.get_attr('ammount').current_value)
+            for time in self.get_node_times(node):
+                columns['TEMPO'        ].append(time)
+                columns['ORIGEM'        ].append(node.label)
+                columns['ENTRADA_DIRETA'].append(node.get_attr('inputed_ammount').value_at(time))
+                columns['SALDO'         ].append(node.get_attr('ammount').value_at(time))
         df_entries = pd.DataFrame(columns)
         df_entries.to_excel(xlsx_writer, sheet_name='SALDOS')
         
@@ -87,7 +91,8 @@ class App:
         ,   'DESTINO'                   : []
         ,   'PERCENTUAL'                : []
         ,   'ENTRADA_DIRETA_ORIGEM'     : []
-        ,   'ENTRADA_INDIRETA_ORIGEM'   : []
+        ,   'SAIDA_DIRETA_ORIGEM'       : []
+        ,   'SALDO_ORIGEM'              : []
         ,   'REPASSE_RESULTANTE'        : []
         ,   'MIN_T'                     : []
         ,   'MAX_T'                     : []
@@ -99,8 +104,9 @@ class App:
             columns['DESTINO'                 ].append(path.to_label)
             columns['PERCENTUAL'              ].append(pct * 100)
             columns['ENTRADA_DIRETA_ORIGEM'   ].append(path.inputed_ammount)
-            columns['ENTRADA_INDIRETA_ORIGEM' ].append(path.received_ammount)
-            columns['REPASSE_RESULTANTE'      ].append((path.received_ammount + path.inputed_ammount * pct))
+            columns['SAIDA_DIRETA_ORIGEM'     ].append(path.transferred_ammount)
+            columns['SALDO_ORIGEM'            ].append(path.ammount)
+            columns['REPASSE_RESULTANTE'      ].append(path.ammount * pct)
             columns['MIN_T'                   ].append(path.min_t)
             columns['MAX_T'                   ].append(path.max_t)
             
@@ -116,6 +122,8 @@ class App:
         ,   'DESTINO'               : []
         ,   'PERCENTUAL'            : []
         ,   'ENTRADA_DIRETA_ORIGEM' : []
+        ,   'SAIDA_DIRETA_ORIGEM'   : []
+        ,   'SALDO_ORIGEM'          : []
         ,   'REPASSE_RESULTANTE'    : []
         ,   'MIN_T'                 : []
         ,   'MAX_T'                 : []
@@ -124,6 +132,7 @@ class App:
         ,   'SEG_DESTINO'           : []
         ,   'SEG_PERCENTUAL'        : []
         ,   'SEG_MIN_T'             : []
+        ,   'SEG_CURR_T'            : []
         ,   'SEG_MAX_T'             : []
         }
         for path_id, path in enumerate(paths):
@@ -135,26 +144,27 @@ class App:
                 columns['DESTINO'               ].append(path.to_label)
                 columns['PERCENTUAL'            ].append(path.pct * 100.0)
                 columns['ENTRADA_DIRETA_ORIGEM' ].append(path.inputed_ammount)
-                columns['REPASSE_RESULTANTE'    ].append(path.inputed_ammount * path.pct)
-                columns['MIN_T'                 ].append(path.segments[0].min_t)
-                columns['MAX_T'                 ].append(path.segments[-1].max_t)
+                columns['SAIDA_DIRETA_ORIGEM'   ].append(path.transferred_ammount)
+                columns['SALDO_ORIGEM'          ].append(path.ammount)
+                columns['REPASSE_RESULTANTE'    ].append(path.ammount * pct)                
+                columns['MIN_T'                 ].append(path.min_t)
+                columns['MAX_T'                 ].append(path.max_t)
                 columns['SEGMENTO'              ].append(segment_id + 1)
                 columns['SEG_ORIGEM'            ].append(segment.from_label)
                 columns['SEG_DESTINO'           ].append(segment.to_label)
                 columns['SEG_PERCENTUAL'        ].append(segment.pct * 100.0)
                 columns['SEG_MIN_T'             ].append(segment.min_t)
+                columns['SEG_CURR_T'            ].append(segment.curr_t)
                 columns['SEG_MAX_T'             ].append(segment.max_t)
             
         df_entries = pd.DataFrame(columns)
         df_entries.to_excel(xlsx_writer, sheet_name='SEGMENTOS')
         
-    def report_result(self, graph, sink_label, entries):
+    def report_result(self, graph, sink_label, entries, paths):
         # TODO: move to presenter
         presenter = GraphPresenter(graph)
-        presenter.compute_pcts()
         
         logger.info('creating path report')
-        paths = graph.build_paths(sink_label)
         xlsx_writer = pd.ExcelWriter(self.path_report)
         # write accouting entries
         self.report_entries(xlsx_writer, entries)
@@ -168,11 +178,29 @@ class App:
             print(presenter.generate_dot(), file=fh)
         
     
+    def get_node_times(self, node):
+        times = set()
+        for node_id in node.out_edges:
+            out_node = node.graph.get_node_by_id(node_id)
+            edge = node.graph.get_edge(node.label, out_node.label)
+            assert edge
+            edge_times = edge.get_attr('time')
+            for time in edge_times:
+                times.add(time)
+        for node_id in node.in_edges:
+            in_node = node.graph.get_node_by_id(node_id)
+            edge = node.graph.get_edge(in_node.label, node.label)
+            assert edge
+            edge_times = edge.get_attr('time')
+            for time in edge_times:
+                times.add(time)
+        return sorted(times)
+        
     def run(self):
         logger.info('starting loader - version %d.%d.%d', *self.VERSION)    
         entries = self.get_entries()
-        graph = self.create_graph(entries)
-        self.report_result(graph, sink_label=self.sink_label, entries=entries)
+        graph, paths = self.create_graph(entries)
+        self.report_result(graph, sink_label=self.sink_label, entries=entries, paths=paths)
         logger.info('finished')
 
 if __name__ == '__main__':

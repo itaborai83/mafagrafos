@@ -60,7 +60,14 @@ class TimedValue:
                 return entry.value
             else:
                 result = entry.value
-        return result
+
+        #result = self.entries[0].value
+        #for entry in self.entries:
+        #    if entry.time >= time:
+        #        return entry.value
+        #    else:
+        #        result = entry.value        
+        #return result
     
     @property
     def current_value(self):

@@ -117,9 +117,9 @@ class Path:
     @property
     def min_t(self):
         assert self.segment_count > 0
-        return self.segments[0].min_t
+        return self.segments[0].curr_t
     
     @property
     def max_t(self):
         assert self.segment_count > 0
-        return self.segments[-1].max_t
+        return self.segments[-1].curr_t
