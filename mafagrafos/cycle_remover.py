@@ -172,24 +172,28 @@ class CycleRemover:
         # update the total received ammount of the destination node
         dst_node.get_attr('received_ammount').update_at(time, entry.ammount)
     
-    def compute_edge_pct(self, src_node, edge, dst_node, parent_max_time=None):
+    def compute_edge_pct(self, src_node, edge, dst_node, parent_curr_t=None):
         assert dst_node.node_id == edge.to_id
         assert edge.from_id == src_node.node_id
         times = edge.get_attr('time')
         assert len(times) > 0
-        if parent_max_time is None:
+        if parent_curr_t is None:
             max_time = edge.get_attr('time')[-1]
         else:
             max_time = None
             for time in reversed(edge.get_attr('time')):
-                if time <= parent_max_time:
+                if time <= parent_curr_t:
                     max_time = time
             if max_time is None:
-                # the edge is temporally inconsistent                
-                return 0.0, None
+                # the edge is temporally inconsistent
+                return 0.0, None            
+            max_time = min(parent_curr_t, max_time)
             
         # compute the edge pct at max_time
         edge_ammount        = edge.get_attr('ammount').value_at(max_time)
+        if edge_ammount == 0.0:
+            # the edge is temporally inconsistent                
+                return 0.0, None
         node_ammount        = src_node.get_attr('ammount').value_at(max_time)
         inputed_ammount     = src_node.get_attr('inputed_ammount').value_at(max_time)
         transferred_ammount = src_node.get_attr('transferred_ammount').value_at(max_time)
@@ -267,23 +271,36 @@ class CycleRemover:
             assert edge
             # create a new path cloning the old path 
             curr_path = old_path.clone()
-            # if the current edge has a parent edge, check its max time
-            if parent_edge is None:
-                parent_max_t = None
-            else:
-                times = parent_edge.get_attr('time')
-                parent_max_t = times[-1]
             # compute this edges min and max times
             times = edge.get_attr('time')
             min_t = times[0]
-            max_t = times[-1]            
+            max_t = times[-1]                        
+            assert min_t <= max_t
+            # if the current edge has a parent edge, check its max time
+            if parent_edge is None:
+                parent_curr_t = None
+            else:
+                #times = parent_edge.get_attr('time')
+                #parent_max_t = times[-1]
+                parent_curr_t = curr_path.segments[-1].curr_t
+                    
             # compute the edge percent taking into account the parent edge's max time
-            pct, curr_t = self.compute_edge_pct(new_head_node, edge, new_tail_node, parent_max_t)
-            if pct is None or curr_t is None:
+            pct, curr_t = self.compute_edge_pct(new_head_node, edge, new_tail_node, parent_curr_t)
+            if pct == 0.0 or curr_t is None:
                 # the edge is temporally inconsistent.
                 # stop processing this path
                 return                
-            
+
+            if parent_curr_t is not None: 
+                # check if the whole path is temporally consistent
+                # note: I thought this would work checking only the next segment, but it didn't
+                # so I am accepting the O(n) cost of this operation
+                for segment in curr_path.segments:
+                    if segment.curr_t < min_t:
+                        # the edge is temporally inconsistent.
+                        # stop processing this path
+                        return
+                        
             # push a new segment onto the first position of the current path
             segment = Segment(
                 from_label  = new_head_node.label

@@ -498,4 +498,4 @@ class TestCycleRemover(unittest.TestCase):
         self.assertEqual(path_06.received_ammount, 0.0)
         self.assertEqual(path_06.ammount, 0.0)
         self.assertEqual(path_06.transferred_ammount, 50.0)
-        self.assertEqual(path_06.pct, 0.125)        
+        self.assertEqual(path_06.pct, 0.125)

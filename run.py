@@ -106,7 +106,7 @@ class App:
             columns['ENTRADA_DIRETA_ORIGEM'   ].append(path.inputed_ammount)
             columns['SAIDA_DIRETA_ORIGEM'     ].append(path.transferred_ammount)
             columns['SALDO_ORIGEM'            ].append(path.ammount)
-            columns['REPASSE_RESULTANTE'      ].append(path.ammount * pct)
+            columns['REPASSE_RESULTANTE'      ].append(path.inputed_ammount * pct)
             columns['MIN_T'                   ].append(path.min_t)
             columns['MAX_T'                   ].append(path.max_t)
             
@@ -146,7 +146,7 @@ class App:
                 columns['ENTRADA_DIRETA_ORIGEM' ].append(path.inputed_ammount)
                 columns['SAIDA_DIRETA_ORIGEM'   ].append(path.transferred_ammount)
                 columns['SALDO_ORIGEM'          ].append(path.ammount)
-                columns['REPASSE_RESULTANTE'    ].append(path.ammount * pct)                
+                columns['REPASSE_RESULTANTE'    ].append(path.inputed_ammount * pct)                
                 columns['MIN_T'                 ].append(path.min_t)
                 columns['MAX_T'                 ].append(path.max_t)
                 columns['SEGMENTO'              ].append(segment_id + 1)
