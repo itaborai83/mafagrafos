@@ -200,6 +200,8 @@ class CycleRemover:
         received_ammount    = src_node.get_attr('received_ammount').value_at(max_time)
         #edges_sum           = node_ammount + edge_ammount + transferred_ammount
         edges_sum           = node_ammount + transferred_ammount
+        if edges_sum == 0.0:
+            return 0.0, max_time
         edge_pct            = edge_ammount / edges_sum        
         
         #print()
