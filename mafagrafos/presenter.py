@@ -24,54 +24,61 @@ class GraphPresenter:
     #            edge.set_attr('pct', edge_pct)
     #            edge.set_attr('pct_txt', edge_pct_txt)
                     
-    def process_node(self, node):
+    def process_node(self, node, show_times=False):
         ammounts_txt = []
         times = set()
         
-        for node_id in node.out_edges:
-            out_node = node.graph.get_node_by_id(node_id)
-            edge = node.graph.get_edge(node.label, out_node.label)
-            assert edge
-            edge_times = edge.get_attr('time')
-            for time in edge_times:
-                times.add(time)
+        if show_times:
+            for node_id in node.out_edges:
+                out_node = node.graph.get_node_by_id(node_id)
+                edge = node.graph.get_edge(node.label, out_node.label)
+                assert edge
+                edge_times = edge.get_attr('time')
+                for time in edge_times:
+                    times.add(time)
 
-        for node_id in node.in_edges:
-            in_node = node.graph.get_node_by_id(node_id)
-            edge = node.graph.get_edge(in_node.label, node.label)
-            assert edge
-            edge_times = edge.get_attr('time')
-            for time in edge_times:
-                times.add(time)
-        
-        ammounts_txt = []
-        for time in sorted(times):
-            ammount = node.get_attr('ammount').value_at(time)
-            ammount_txt = f"${ammount}@T{time}"
-            ammounts_txt.append(ammount_txt)
-        ammounts_txt = ",\\n".join(ammounts_txt)
-        label = self.in_double_quotes(node.label + "\\n" + ammounts_txt)
-        line = "    " + self.in_double_quotes(node.label) + "[label=" + label + "]; // node_id = " + str(node.node_id)
+            for node_id in node.in_edges:
+                in_node = node.graph.get_node_by_id(node_id)
+                edge = node.graph.get_edge(in_node.label, node.label)
+                assert edge
+                edge_times = edge.get_attr('time')
+                for time in edge_times:
+                    times.add(time)
+            
+            ammounts_txt = []
+            for time in sorted(times):
+                ammount = node.get_attr('ammount').value_at(time)
+                ammount_txt = f"${ammount}@T{time}"
+                ammounts_txt.append(ammount_txt)
+            ammounts_txt = ",\\n".join(ammounts_txt)
+            label = self.in_double_quotes(node.label + "\\n" + ammounts_txt)
+            line = "    " + self.in_double_quotes(node.label) + "[label=" + label + "]; // node_id = " + str(node.node_id)
+        else:
+            label = self.in_double_quotes(node.label)
+            line = "    " + self.in_double_quotes(node.label) + "[label=" + label + "]; // node_id = " + str(node.node_id)
         return line, 
         
-    def process_edge(self, edge):
+    def process_edge(self, edge, show_times=False):
         from_node = self.graph.get_node_by_id(edge.from_id)
         to_node = self.graph.get_node_by_id(edge.to_id)
         from_label = self.in_double_quotes(from_node.label)
         to_label = self.in_double_quotes(to_node.label)
 
-        times = edge.get_attr('time')
-        ammounts_txt = []
-        for time in times:
-            ammount = edge.get_attr('ammount').value_at(time)
-            ammount_txt = f"${ammount}@T{time}"
-            ammounts_txt.append(ammount_txt)
-        ammounts_txt = ",\\n".join(ammounts_txt)
-        edge_label = self.in_double_quotes(ammounts_txt)
-        line = "    " + from_label + " -> " + to_label +  "[label=" + edge_label + "]; "
+        if show_times:
+            times = edge.get_attr('time')
+            ammounts_txt = []
+            for time in times:
+                ammount = edge.get_attr('ammount').value_at(time)
+                ammount_txt = f"${ammount}@T{time}"
+                ammounts_txt.append(ammount_txt)
+            ammounts_txt = ",\\n".join(ammounts_txt)
+            edge_label = self.in_double_quotes(ammounts_txt)
+            line = "    " + from_label + " -> " + to_label +  "[label=" + edge_label + "]; "
+        else:
+            line = "    " + from_label + " -> " + to_label + "; "        
         return line,
         
-    def generate_dot(self):
+    def generate_dot(self, show_times=False):
         lines = []
         graph_name = self.in_double_quotes(self.graph.name)
         lines.append("digraph " + graph_name + "{")

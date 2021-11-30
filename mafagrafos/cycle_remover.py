@@ -24,18 +24,28 @@ class CycleRemover:
         self.logger         = logger
         self.labels         = {}
         self.current_time   = 0
+        self.clock_running  = True
     
     def info(self, *args):
         if self.logger:
-            self.logger.error(*args)
+            self.logger.info(*args)
     
     def error(self, *args):
         if self.logger:
             self.logger.error(*args)
-            
+    
+    def stop_clock(self):
+        assert self.clock_running
+        self.clock_running = False
+    
+    def start_clock(self):
+        assert not self.clock_running
+        self.clock_running = True
+        
     def tick(self):
         curr_time = self.current_time
-        self.current_time += 1
+        if self.clock_running:
+            self.current_time += 1
         return curr_time
     
     def get_label_remappings(self, label):
@@ -81,8 +91,10 @@ class CycleRemover:
             node.set_attr('transferred_ammount', TimedValue())
         return node
 
-    def add_edge_if_needed(self, graph, src_node, dst_node):
+    def add_edge_if_needed(self, graph, src_node, dst_node, ensure_creation=False):
         edge = graph.get_edge(src_node.label, dst_node.label)
+        if ensure_creation:
+            assert edge
         if edge:
             # edge exists
             return edge
@@ -160,6 +172,7 @@ class CycleRemover:
             dst_node = self.add_node_if_needed(graph, dst_label) # wll always create the node
             self.transfer_ammount_through_time(graph, orig_dst_label) # transfer the all the remaining balance to the new node
             edge = self.add_edge_if_needed(graph, src_node, dst_node)
+            assert edge
             time = self.tick()
             edge.get_attr('ammount').update_at(time, entry.ammount)
             edge.get_attr('time').append(time)
@@ -172,6 +185,7 @@ class CycleRemover:
         # update the total received ammount of the destination node
         dst_node.get_attr('received_ammount').update_at(time, entry.ammount)
     
+    """
     def compute_edge_pct(self, src_node, edge, dst_node, parent_curr_t=None):
         assert dst_node.node_id == edge.to_id
         assert edge.from_id == src_node.node_id
@@ -180,20 +194,21 @@ class CycleRemover:
         if parent_curr_t is None:
             max_time = edge.get_attr('time')[-1]
         else:
-            max_time = None
-            for time in reversed(edge.get_attr('time')):
-                if time <= parent_curr_t:
-                    max_time = time
-            if max_time is None:
-                # the edge is temporally inconsistent
-                return 0.0, None            
-            max_time = min(parent_curr_t, max_time)
+            max_time = parent_curr_t
+            #max_time = None
+            #for time in reversed(edge.get_attr('time')):
+            #    if time <= parent_curr_t:
+            #        max_time = time
+            #if max_time is None:
+            #    # the edge is temporally inconsistent
+            #    return 0.0, None            
+            #max_time = min(parent_curr_t, max_time)
             
         # compute the edge pct at max_time
         edge_ammount        = edge.get_attr('ammount').value_at(max_time)
-        if edge_ammount == 0.0:
-            # the edge is temporally inconsistent                
-                return 0.0, None
+        #if edge_ammount == 0.0:
+        #    # the edge is temporally inconsistent                
+        #        return 0.0, None
         node_ammount        = src_node.get_attr('ammount').value_at(max_time)
         inputed_ammount     = src_node.get_attr('inputed_ammount').value_at(max_time)
         transferred_ammount = src_node.get_attr('transferred_ammount').value_at(max_time)
@@ -201,7 +216,8 @@ class CycleRemover:
         #edges_sum           = node_ammount + edge_ammount + transferred_ammount
         edges_sum           = node_ammount + transferred_ammount
         if edges_sum == 0.0:
-            return 0.0, max_time
+            #return 0.0, None
+            return 1.0, max_time
         edge_pct            = edge_ammount / edges_sum        
         
         #print()
@@ -216,42 +232,20 @@ class CycleRemover:
                 
         return edge_pct, max_time
     
-    def handle_entry(self, graph, entry):
-        self.add_node_if_needed(graph, entry.src)
-        self.add_node_if_needed(graph, entry.dst)
-        if entry.src is None:
-            self.handle_direct_loading(graph, entry)
-        else:
-            self.handle_account_transfer(graph, entry)
-
+    
     def build_paths(self, graph, sink_label):
+        #import pdb; pdb.set_trace()
         # graph is a DAG, so no cycles
         assert not graph.allow_cycles
-        head_node = graph.get_node_by_label(sink_label)
-        assert head_node
-        curr_path = Path()
+        labels = self.get_label_remappings(sink_label)
         acc = []
-        self._build_path(graph, head_node, None, None, None, curr_path, acc)
+        for label in labels:
+            head_node = graph.get_node_by_label(label)
+            assert head_node
+            curr_path = Path()
+            self._build_path(graph, head_node, None, None, None, curr_path, acc)
         return acc
     
-    #def _get_node_times(self, graph, src_node):
-    #    min_t = None
-    #    max_t = None
-    #    for dst_node_id in src_node.out_edges:
-    #        dst_node = graph.get_node_by_id(dst_node_id)
-    #        assert dst_node
-    #        #edge = graph.get_edge(src_node.label, dst_node.label)
-    #        edge = graph.get_edge(src_node.label, dst_node.label)
-    #        assert edge
-    #        times = edge.get_attr('time')
-    #        if min_t is None and max_t is None:
-    #            min_t, max_t = times[0], times[-1]
-    #        else:
-    #            min_t = min(min_t, times[0])
-    #            max_t = max(max_t, times[-1])
-    #    assert (min_t is None and max_t is None) or min_t <= max_t
-    #    return min_t, max_t
-        
     def _build_path(self, graph, head_node, edge, tail_node, parent_edge, curr_path, acc):
         if self.SHOW_PATH_BUILDING:
             print(head_node)
@@ -268,6 +262,12 @@ class CycleRemover:
             # retrieve the start node of the edge
             new_head_node = graph.get_node_by_id(from_id)
             assert new_head_node
+            # make sure the edge is not a virtual edge used to transfer funds through time
+            orig_head_label = new_head_node.label.split("--")[0]
+            orig_tail_label = new_tail_node.label.split("--")[0]
+            if orig_head_label == orig_tail_label:
+                # not a valid path
+                continue
             # use the node label to retrieve the edge itself
             edge = graph.get_edge(new_head_node.label, new_tail_node.label)
             assert edge
@@ -284,7 +284,8 @@ class CycleRemover:
             else:
                 #times = parent_edge.get_attr('time')
                 #parent_max_t = times[-1]
-                parent_curr_t = curr_path.segments[-1].curr_t
+                #parent_curr_t = curr_path.segments[-1].curr_t
+                parent_curr_t = curr_path.segments[0].curr_t
                     
             # compute the edge percent taking into account the parent edge's max time
             pct, curr_t = self.compute_edge_pct(new_head_node, edge, new_tail_node, parent_curr_t)
@@ -293,15 +294,15 @@ class CycleRemover:
                 # stop processing this path
                 return                
 
-            if parent_curr_t is not None: 
-                # check if the whole path is temporally consistent
-                # note: I thought this would work checking only the next segment, but it didn't
-                # so I am accepting the O(n) cost of this operation
-                for segment in curr_path.segments:
-                    if segment.curr_t < min_t:
-                        # the edge is temporally inconsistent.
-                        # stop processing this path
-                        return
+            #if parent_curr_t is not None: 
+            #    # check if the whole path is temporally consistent
+            #    # note: I thought this would work checking only the next segment, but it didn't
+            #    # so I am accepting the O(n) cost of this operation
+            #    for segment in curr_path.segments:
+            #        if segment.curr_t < min_t:
+            #            # the edge is temporally inconsistent.
+            #            # stop processing this path
+            #            return
                         
             # push a new segment onto the first position of the current path
             segment = Segment(
@@ -320,11 +321,168 @@ class CycleRemover:
             acc.append(curr_path)
             # continue exploring this path
             self._build_path(graph, new_head_node, edge, new_tail_node, parent_edge, curr_path, acc)
-                    
-    def create_graph(self, graph_name, entries):
-        self.info('creating graph')
-        graph = Graph(graph_name, allow_cycles=False)
+    """
 
+    def compute_edge_pct(self, src_node, edge, dst_node, max_time):
+        assert dst_node.node_id == edge.to_id
+        assert edge.from_id == src_node.node_id
+        times = edge.get_attr('time')
+        assert len(times) > 0
+            
+        # compute the edge pct at max_time
+        edge_ammount        = edge.get_attr('ammount').value_at(max_time)
+        if edge_ammount == 0.0:
+            # the edge is temporally inconsistent                
+            return 0.0
+        node_ammount        = src_node.get_attr('ammount').value_at(max_time)
+        inputed_ammount     = src_node.get_attr('inputed_ammount').value_at(max_time)
+        transferred_ammount = src_node.get_attr('transferred_ammount').value_at(max_time)
+        received_ammount    = src_node.get_attr('received_ammount').value_at(max_time)
+
+        edges_sum           = node_ammount + transferred_ammount
+        if edges_sum == 0.0:
+            #return 0.0
+            return 1.0 # is this right???
+        
+        edge_pct = edge_ammount / edges_sum        
+                        
+        return edge_pct    
+    
+    def build_paths(self, graph, sink_label):
+        #import pdb; pdb.set_trace()
+        # graph is a DAG, so no cycles
+        assert not graph.allow_cycles
+        labels = self.get_label_remappings(sink_label)
+        acc = []
+        for label in labels:
+            head_node = graph.get_node_by_label(label)
+            assert head_node
+            curr_path = None
+            self._build_path(graph, head_node, None, None, None, curr_path, acc)
+        return acc
+    
+    def _build_path(self, graph, head_node, edge, tail_node, parent_edge, curr_path, acc):
+        
+        old_path = curr_path
+        new_tail_node = head_node
+        parent_edge = edge
+        for from_id in new_tail_node.in_edges:
+            # retrieve the start node of the edge
+            new_head_node = graph.get_node_by_id(from_id)
+            assert new_head_node
+            #orig_head_label = new_head_node.label.split("--")[0]
+            #orig_tail_label = new_tail_node.label.split("--")[0]
+            #if orig_head_label == orig_tail_label:
+            #    # not a valid path
+            #    continue            
+            # make sure the edge is not a virtual edge used to transfer funds through time
+            # use the node label to retrieve the edge itself
+            edge = graph.get_edge(new_head_node.label, new_tail_node.label)
+            assert edge
+            # compute this edges min and max times
+            times = edge.get_attr('time')
+            max_t = times[-1]
+            
+            if old_path is None:
+                # create a root path
+                curr_path = PathV2()
+                curr_path.root_path     = self
+                curr_path.from_label    = new_head_node.label
+                curr_path.to_label      = new_tail_node.label
+                curr_path.parent_path   = None
+                curr_path.children      = []
+                curr_path.length        = 1
+                curr_path.max_t         = max_t
+                curr_path.pct           = self.compute_edge_pct(new_head_node, edge, new_tail_node, max_t)
+                if curr_path.pct == 0.0:
+                    # edge is a dead end
+                    # stop processing this path
+                    del curr_path
+                    return
+            else:
+                # create a new path pointing the old one as its parent
+                curr_path = PathV2()
+                curr_path.root_path              = old_path.root_path
+                curr_path.from_label             = new_head_node.label
+                curr_path.to_label               = old_path.to_label # stays the same
+                curr_path.parent_path            = old_path
+                curr_path.children               = []
+                curr_path.length                 = old_path.length + 1
+                curr_path.max_t                  = min(max_t, old_path.max_t)
+                curr_path.pct                    = self.compute_edge_pct(new_head_node, edge, new_tail_node, max_t)
+                if curr_path.pct == 0.0:
+                    # edge is a dead end
+                    # stop processing this path
+                    del curr_path
+                    return                    
+                old_path.children.append(curr_path)
+            
+            curr_path.path_id             = PathV2.next_id()
+            curr_path.ammount             = new_head_node.get_attr('ammount').value_at(curr_path.max_t)
+            curr_path.inputed_ammount     = new_head_node.get_attr('inputed_ammount').value_at(curr_path.max_t)
+            curr_path.received_ammount    = new_head_node.get_attr('received_ammount').value_at(curr_path.max_t)
+            curr_path.transferred_ammount = new_head_node.get_attr('transferred_ammount').value_at(curr_path.max_t)
+            acc.append(curr_path)
+            # continue exploring this path
+            self._build_path(graph, new_head_node, edge, new_tail_node, parent_edge, curr_path, acc)
+            
+    def handle_entry(self, graph, entry):
+        self.add_node_if_needed(graph, entry.src)
+        self.add_node_if_needed(graph, entry.dst)
+        if entry.src is None:
+            self.handle_direct_loading(graph, entry)
+        else:
+            self.handle_account_transfer(graph, entry)
+    
+    def handle_batched_timed_entries(self, graph, entries):
+        # time advances
+        self.tick() 
+        self.stop_clock()
+        # handle first inputed ammounts
         for entry in entries:
+            if entry.src is None:
+                self.handle_entry(graph, entry)
+        self.start_clock()
+                
+        # time advances
+        self.tick() 
+        self.stop_clock()
+        # now handle transfers
+        entries.sort(key=lambda e: (e.dst, e.src))
+        for entry in entries:
+            if entry.src is None:
+                continue
             self.handle_entry(graph, entry)
+        self.start_clock()
+        
+    def create_graph(self, graph_name, entries):
+        graph = Graph(graph_name, allow_cycles=False)
+        has_date_time = entries[0].date
+        
+        if not has_date_time:
+            self.info('creating graph not using time stamp information')
+            for entry in entries:
+                assert entry.date is None
+                assert entry.time is None
+                self.handle_entry(graph, entry)
+        else:
+            self.info('creating graph using time stamp information')
+            last_date = entries[0].date
+            last_time = entries[0].time
+            acc_entries = []
+            for entry in entries:
+                if last_date == entry.date and last_time == entry.time:
+                    acc_entries.append(entry)
+                else:
+                    assert last_date < entry.date or last_date == entry.date and last_time < entry.time, (last_date, entry.date, entry.date, entry.time)
+                    self.handle_batched_timed_entries(graph, acc_entries)
+                    acc_entries.clear()
+                    acc_entries.append(entry)
+            last_date = entry.date
+            last_time = entry.time
+        
+        if len(acc_entries) > 0:
+            self.handle_batched_timed_entries(graph, acc_entries)
+            acc_entries.clear()            
+        
         return graph
