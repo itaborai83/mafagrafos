@@ -75,6 +75,7 @@ class App:
         columns = {
             'ORIGEM'                : []
         ,   'ENTRADA_DIRETA'        : []
+        ,   'ENTRADA_INDIRETA'      : []
         ,   'SAIDA_DIRETA'          : []
         ,   'SALDO'                 : []
         }
@@ -82,6 +83,7 @@ class App:
         for node in graph.nodes:
             columns['ORIGEM'        ].append(node.label)
             columns['ENTRADA_DIRETA'].append(node.get_attr('inputed_ammount').current_value)
+            columns['ENTRADA_INDIRETA'].append(node.get_attr('received_ammount').current_value)
             columns['SAIDA_DIRETA'].append(node.get_attr('transferred_ammount').current_value)
             columns['SALDO'         ].append(node.get_attr('ammount').current_value)                
         df_balances = pd.DataFrame(columns)

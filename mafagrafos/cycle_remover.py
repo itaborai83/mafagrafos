@@ -330,22 +330,23 @@ class CycleRemover:
         assert len(times) > 0
             
         # compute the edge pct at max_time
-        edge_ammount        = edge.get_attr('ammount').value_at(max_time)
+        #edge_ammount        = edge.get_attr('ammount').value_at(max_time)
+        edge_ammount        = edge.get_attr('ammount').current_value
         if edge_ammount == 0.0:
             # the edge is temporally inconsistent                
             return 0.0
-        node_ammount        = src_node.get_attr('ammount').value_at(max_time)
-        inputed_ammount     = src_node.get_attr('inputed_ammount').value_at(max_time)
-        transferred_ammount = src_node.get_attr('transferred_ammount').value_at(max_time)
-        received_ammount    = src_node.get_attr('received_ammount').value_at(max_time)
-
+        #node_ammount        = src_node.get_attr('ammount').value_at(max_time)
+        #inputed_ammount     = src_node.get_attr('inputed_ammount').value_at(max_time)
+        #transferred_ammount = src_node.get_attr('transferred_ammount').value_at(max_time)
+        #received_ammount    = src_node.get_attr('received_ammount').value_at(max_time)
+        node_ammount        = src_node.get_attr('ammount').current_value
+        inputed_ammount     = src_node.get_attr('inputed_ammount').current_value
+        transferred_ammount = src_node.get_attr('transferred_ammount').current_value
+        received_ammount    = src_node.get_attr('received_ammount').current_value
         edges_sum           = node_ammount + transferred_ammount
         if edges_sum == 0.0:
-            #return 0.0
-            return 1.0 # is this right???
-        
+            return 0.0
         edge_pct = edge_ammount / edges_sum        
-                        
         return edge_pct    
     
     def build_paths(self, graph, sink_label):
@@ -362,7 +363,9 @@ class CycleRemover:
         return acc
     
     def _build_path(self, graph, head_node, edge, tail_node, parent_edge, curr_path, acc):
-        
+        if len(acc) % 10 == 0:
+            print(len(acc), 'paths ...')
+            
         old_path = curr_path
         new_tail_node = head_node
         parent_edge = edge
@@ -393,12 +396,12 @@ class CycleRemover:
                 curr_path.children      = []
                 curr_path.length        = 1
                 curr_path.max_t         = max_t
-                curr_path.pct           = self.compute_edge_pct(new_head_node, edge, new_tail_node, max_t)
+                curr_path.pct           = self.compute_edge_pct(new_head_node, edge, new_tail_node, curr_path.max_t)
                 if curr_path.pct == 0.0:
                     # edge is a dead end
                     # stop processing this path
                     del curr_path
-                    return
+                    continue
             else:
                 # create a new path pointing the old one as its parent
                 curr_path = PathV2()
@@ -409,19 +412,32 @@ class CycleRemover:
                 curr_path.children               = []
                 curr_path.length                 = old_path.length + 1
                 curr_path.max_t                  = min(max_t, old_path.max_t)
-                curr_path.pct                    = self.compute_edge_pct(new_head_node, edge, new_tail_node, max_t)
+                #curr_path.max_t                  = old_path.max_t
+                curr_path.pct                    = self.compute_edge_pct(new_head_node, edge, new_tail_node, curr_path.max_t) * old_path.pct
                 if curr_path.pct == 0.0:
                     # edge is a dead end
                     # stop processing this path
                     del curr_path
-                    return                    
-                old_path.children.append(curr_path)
+                    continue                    
+                
+            curr_path.ammount             = new_head_node.get_attr('ammount').current_value
+            curr_path.inputed_ammount     = new_head_node.get_attr('inputed_ammount').current_value
+            curr_path.received_ammount    = new_head_node.get_attr('received_ammount').current_value
+            curr_path.transferred_ammount = new_head_node.get_attr('transferred_ammount').current_value
             
+            #curr_path.ammount             = new_head_node.get_attr('ammount').value_at(curr_path.max_t)
+            #curr_path.inputed_ammount     = new_head_node.get_attr('inputed_ammount').value_at(curr_path.max_t)
+            #curr_path.received_ammount    = new_head_node.get_attr('received_ammount').value_at(curr_path.max_t)
+            #curr_path.transferred_ammount = new_head_node.get_attr('transferred_ammount').value_at(curr_path.max_t)
+            
+            # test wether it makes sense to continue exploring this path
+            reachable_ammount = (curr_path.received_ammount + curr_path.inputed_ammount) * curr_path.pct
+            if abs(reachable_ammount) <= 0.01:
+                continue
+                
             curr_path.path_id             = PathV2.next_id()
-            curr_path.ammount             = new_head_node.get_attr('ammount').value_at(curr_path.max_t)
-            curr_path.inputed_ammount     = new_head_node.get_attr('inputed_ammount').value_at(curr_path.max_t)
-            curr_path.received_ammount    = new_head_node.get_attr('received_ammount').value_at(curr_path.max_t)
-            curr_path.transferred_ammount = new_head_node.get_attr('transferred_ammount').value_at(curr_path.max_t)
+            if old_path:
+                old_path.children.append(curr_path)
             acc.append(curr_path)
             # continue exploring this path
             self._build_path(graph, new_head_node, edge, new_tail_node, parent_edge, curr_path, acc)
@@ -471,6 +487,8 @@ class CycleRemover:
             last_time = entries[0].time
             acc_entries = []
             for entry in entries:
+                if entry.ammount == 0.0:
+                    continue
                 if last_date == entry.date and last_time == entry.time:
                     acc_entries.append(entry)
                 else:

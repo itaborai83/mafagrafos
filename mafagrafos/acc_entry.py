@@ -21,21 +21,24 @@ class CoepEntry:
     
     __slots__ = [ 'dst', 'src', 'ammount', 'date', 'time', 'type' ]
     
-    def __init__(self, dst, src, ammount, date=None, time=None, type='D'):
-        if src is None or type == 'D':
+    def __init__(self, dst, src, ammount, date=None, time=None, type='D'):        
+        if src is None:
             self.dst        = dst
             self.ammount    = ammount
             self.src        = src
-            self.date       = date
-            self.time       = time
+            self.type       = type
+        elif type == 'D':
+            self.dst        = dst
+            self.ammount    = ammount
+            self.src        = src
             self.type       = type
         else:
-            self.dst        = src            # look here
-            self.ammount    = ammount * -1.0 # look here
-            self.src        = dst            # look here
-            self.date       = date
-            self.time       = time
-            self.type       = 'D'
+            self.dst        = src
+            self.ammount    = 0.0 * -1.0 * ammount
+            self.src        = dst
+            self.type       = type
+        self.date       = date
+        self.time       = time
                 
     def __eq__(self, other):
         if other is None:
